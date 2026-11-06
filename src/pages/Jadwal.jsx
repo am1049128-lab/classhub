@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { jadwalPelajaran, jadwalPiket, initialProdi } from '../data/dummy';
+import { useState, useEffect, useCallback } from 'react';
+import { jadwalPiket, initialProdi } from '../data/dummy';
 import { useTheme } from '../context/ThemeContext';
+import { getJadwalList, addJadwal, deleteJadwalItem } from '../lib/supabase';
 
 const HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
 
@@ -21,21 +22,9 @@ export default function Jadwal({ prodiList = initialProdi }) {
 
   const [activeHari, setActiveHari] = useState(hariToday);
   const [filterProdi, setFilterProdi] = useState('Semua');
-  const [jadwalData, setJadwalData] = useState(() => {
-    const saved = localStorage.getItem('classhub_jadwal_v2') || localStorage.getItem('classhub_jadwal_v1');
-    if (saved) {
-      try { 
-        const parsed = JSON.parse(saved);
-        const migrated = {};
-        for (const [day, list] of Object.entries(parsed)) {
-          migrated[day] = list.map(item => item.prodi === 'Teknik Informatika' ? { ...item, prodi: 'Ilmu Komputer' } : item);
-        }
-        return migrated;
-      } catch {}
-    }
-    return jadwalPelajaran;
-  });
-
+  const [jadwalFlat, setJadwalFlat] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isCloud, setIsCloud] = useState(false);
   const [showTambah, setShowTambah] = useState(false);
   const [newJadwal, setNewJadwal] = useState({
     hari: hariToday,
@@ -46,29 +35,44 @@ export default function Jadwal({ prodiList = initialProdi }) {
     ruangan: '',
   });
 
-  useEffect(() => {
-    localStorage.setItem('classhub_jadwal_v1', JSON.stringify(jadwalData));
-  }, [jadwalData]);
+  // Fetch jadwal dari Supabase / localStorage
+  const fetchJadwal = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, isSupabase } = await getJadwalList();
+      setJadwalFlat(data);
+      setIsCloud(isSupabase);
+    } catch (err) {
+      console.warn('Gagal fetch jadwal:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const rawJadwalHari = jadwalData[activeHari] || [];
-  const listJadwal = rawJadwalHari.filter(j => {
+  useEffect(() => {
+    fetchJadwal();
+  }, [fetchJadwal]);
+
+  // Filter jadwal berdasarkan hari aktif dan prodi
+  const listJadwal = jadwalFlat.filter(j => {
+    const matchHari = j.hari === activeHari;
+    if (!matchHari) return false;
     if (filterProdi === 'Semua') return true;
     return j.prodi === filterProdi || j.prodi === 'Semua';
   });
 
   const piketHari = jadwalPiket.find(p => p.hari === activeHari)?.anggota || [];
 
-  const handleTambahJadwal = (e) => {
+  const handleTambahJadwal = async (e) => {
     e.preventDefault();
     if (!newJadwal.mapel || !newJadwal.jam) return;
 
-    setJadwalData(prev => ({
-      ...prev,
-      [newJadwal.hari]: [
-        ...(prev[newJadwal.hari] || []),
-        { ...newJadwal }
-      ]
-    }));
+    try {
+      const record = await addJadwal(newJadwal);
+      setJadwalFlat(prev => [record, ...prev]);
+    } catch (err) {
+      console.warn('Gagal tambah jadwal:', err);
+    }
 
     setNewJadwal({
       hari: activeHari,
@@ -81,12 +85,14 @@ export default function Jadwal({ prodiList = initialProdi }) {
     setShowTambah(false);
   };
 
-  const handleHapusJadwal = (hari, index) => {
+  const handleHapusJadwal = async (id) => {
     if (window.confirm('Hapus mata kuliah ini dari jadwal?')) {
-      setJadwalData(prev => ({
-        ...prev,
-        [hari]: prev[hari].filter((_, i) => i !== index)
-      }));
+      try {
+        await deleteJadwalItem(id);
+        setJadwalFlat(prev => prev.filter(j => j.id !== id));
+      } catch (err) {
+        console.warn('Gagal hapus jadwal:', err);
+      }
     }
   };
 
@@ -100,8 +106,13 @@ export default function Jadwal({ prodiList = initialProdi }) {
               Akademik & Perkuliahan
             </span>
             <span className="text-xs text-gray-400">• Semester Ganjil 2026/2027</span>
+            {isCloud && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Data tersinkron dengan Supabase">
+                ☁️ Cloud
+              </span>
+            )}
           </div>
-          <h1 className="text-3xl font-black tracking-tight">📅 Jadwal Kuliah & Piket</h1>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">📅 Jadwal Kuliah & Piket</h1>
           <p className={`text-sm mt-1 max-w-2xl ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
             Jadwal perkuliahan mingguan per program studi, ruangan kelas, laboratorium, dan jadwal piket harian.
           </p>
@@ -121,7 +132,7 @@ export default function Jadwal({ prodiList = initialProdi }) {
         isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
       }`}>
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          
+
           {/* Hari tabs */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 lg:pb-0">
             {HARI.map(hari => {
@@ -166,140 +177,150 @@ export default function Jadwal({ prodiList = initialProdi }) {
         </div>
       </div>
 
-      {/* Main Grid: Jadwal Kuliah & Piket */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Kolom Jadwal Kuliah (2 span) */}
-        <div className={`lg:col-span-2 rounded-3xl p-6 border ${
-          isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
-        }`}>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="font-extrabold text-lg flex items-center gap-2">
-              <span>📚</span>
-              <span>Mata Kuliah Hari {activeHari}</span>
-            </h2>
-            <span className="text-xs px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 font-bold">
-              {listJadwal.length} sesi perkuliahan
-            </span>
-          </div>
-
-          {listJadwal.length === 0 ? (
-            <div className="text-center py-12 text-gray-400 space-y-2">
-              <span className="text-4xl block">🏖️</span>
-              <p className="font-semibold text-sm">Tidak ada jadwal kuliah untuk kriteria ini</p>
-              <p className="text-xs">Silakan pilih hari lain atau ubah filter prodi.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {listJadwal.map((item, idx) => {
-                const prodiKey = item.prodi || 'Semua';
-                const styleColor = PRODI_COLORS[prodiKey] || PRODI_COLORS['Semua'];
-                return (
-                  <div
-                    key={idx}
-                    className={`p-4 rounded-2xl border transition-all hover:scale-[1.01] flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                      isDark ? 'bg-gray-800/70 border-gray-700' : 'bg-gray-50 border-gray-200 shadow-sm'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`w-1.5 h-12 rounded-full bg-gradient-to-b ${styleColor.split(' ')[0]} ${styleColor.split(' ')[1]} shrink-0 mt-0.5`} />
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${styleColor}`}>
-                            {item.prodi || 'Semua Prodi'}
-                          </span>
-                          {item.ruangan && (
-                            <span className="text-[10px] text-gray-400 flex items-center gap-1 font-medium">
-                              📍 {item.ruangan}
-                            </span>
-                          )}
-                        </div>
-                        <h3 className="font-bold text-sm sm:text-base leading-tight">{item.mapel}</h3>
-                        {item.guru && (
-                          <p className="text-xs text-gray-400 mt-0.5">👨‍🏫 {item.guru}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-gray-800">
-                      <div className="text-right">
-                        <span className="text-xs font-bold text-indigo-400 px-2.5 py-1 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-                          ⏰ {item.jam}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => handleHapusJadwal(activeHari, idx)}
-                        className="text-gray-500 hover:text-rose-400 text-xs p-1"
-                        title="Hapus sesi ini"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+      {/* Loading State */}
+      {loading && (
+        <div className="text-center py-12 text-gray-400 space-y-2">
+          <span className="text-4xl block animate-spin">⏳</span>
+          <p className="font-semibold text-sm">Memuat jadwal kuliah...</p>
         </div>
+      )}
 
-        {/* Kolom Kanan: Jadwal Piket & Info Kampus */}
-        <div className="space-y-6">
-          
-          {/* Jadwal Piket / Lab */}
-          <div className={`rounded-3xl p-6 border ${
+      {/* Main Grid: Jadwal Kuliah & Piket */}
+      {!loading && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          {/* Kolom Jadwal Kuliah (2 span) */}
+          <div className={`lg:col-span-2 rounded-3xl p-6 border ${
             isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
           }`}>
-            <h2 className="font-extrabold text-base mb-4 flex items-center gap-2">
-              <span>🧹</span>
-              <span>Piket / Tim Lab Hari {activeHari}</span>
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-extrabold text-lg flex items-center gap-2">
+                <span>📚</span>
+                <span>Mata Kuliah Hari {activeHari}</span>
+              </h2>
+              <span className="text-xs px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 font-bold">
+                {listJadwal.length} sesi perkuliahan
+              </span>
+            </div>
 
-            {piketHari.length === 0 ? (
-              <p className="text-xs text-gray-400">Tidak ada jadwal piket hari ini.</p>
+            {listJadwal.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 space-y-2">
+                <span className="text-4xl block">🏖️</span>
+                <p className="font-semibold text-sm">Tidak ada jadwal kuliah untuk kriteria ini</p>
+                <p className="text-xs">Silakan pilih hari lain atau ubah filter prodi.</p>
+              </div>
             ) : (
-              <div className="space-y-2">
-                {piketHari.map((nama, i) => (
-                  <div
-                    key={i}
-                    className={`flex items-center gap-3 p-3 rounded-xl ${
-                      isDark ? 'bg-gray-800/80 text-gray-300' : 'bg-gray-50 text-gray-700'
-                    }`}
-                  >
-                    <span className="w-6 h-6 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xs">
-                      {i + 1}
-                    </span>
-                    <span className="text-xs font-semibold">{nama}</span>
-                  </div>
-                ))}
+              <div className="space-y-3">
+                {listJadwal.map((item) => {
+                  const prodiKey = item.prodi || 'Semua';
+                  const styleColor = PRODI_COLORS[prodiKey] || PRODI_COLORS['Semua'];
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-4 rounded-2xl border transition-all hover:scale-[1.01] flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                        isDark ? 'bg-gray-800/70 border-gray-700' : 'bg-gray-50 border-gray-200 shadow-sm'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-1.5 h-12 rounded-full bg-gradient-to-b ${styleColor.split(' ')[0]} ${styleColor.split(' ')[1]} shrink-0 mt-0.5`} />
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${styleColor}`}>
+                              {item.prodi || 'Semua Prodi'}
+                            </span>
+                            {item.ruangan && (
+                              <span className="text-[10px] text-gray-400 flex items-center gap-1 font-medium">
+                                📍 {item.ruangan}
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="font-bold text-sm sm:text-base leading-tight">{item.mapel}</h3>
+                          {item.guru && (
+                            <p className="text-xs text-gray-400 mt-0.5">👨‍🏫 {item.guru}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-gray-800">
+                        <div className="text-right">
+                          <span className="text-xs font-bold text-indigo-400 px-2.5 py-1 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                            ⏰ {item.jam}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => handleHapusJadwal(item.id)}
+                          className="text-gray-500 hover:text-rose-400 text-xs p-1"
+                          title="Hapus sesi ini"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
-            <p className="text-[11px] text-gray-500 mt-4 italic">
-              💡 Bertanggung jawab merapikan Lab Komputer dan memastikan proyektor/AC mati setelah kuliah.
-            </p>
           </div>
 
-          {/* Quick tips */}
-          <div className={`rounded-3xl p-6 border bg-gradient-to-br from-indigo-950/40 to-purple-950/30 border-indigo-500/30`}>
-            <h3 className="font-bold text-sm text-indigo-300 mb-2 flex items-center gap-1.5">
-              <span>💡</span> Catatan Akademik
-            </h3>
-            <p className="text-xs text-gray-300 leading-relaxed">
-              Mahasiswa wajib hadir 10 menit sebelum kelas dimulai. Presensi kehadiran minimal 75% sebagai syarat mengikuti Ujian Akhir Semester (UAS).
-            </p>
+          {/* Kolom Kanan: Jadwal Piket & Info Kampus */}
+          <div className="space-y-6">
+
+            {/* Jadwal Piket / Lab */}
+            <div className={`rounded-3xl p-6 border ${
+              isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
+            }`}>
+              <h2 className="font-extrabold text-base mb-4 flex items-center gap-2">
+                <span>🧹</span>
+                <span>Piket / Tim Lab Hari {activeHari}</span>
+              </h2>
+
+              {piketHari.length === 0 ? (
+                <p className="text-xs text-gray-400">Tidak ada jadwal piket hari ini.</p>
+              ) : (
+                <div className="space-y-2">
+                  {piketHari.map((nama, i) => (
+                    <div
+                      key={i}
+                      className={`flex items-center gap-3 p-3 rounded-xl ${
+                        isDark ? 'bg-gray-800/80 text-gray-300' : 'bg-gray-50 text-gray-700'
+                      }`}
+                    >
+                      <span className="w-6 h-6 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xs">
+                        {i + 1}
+                      </span>
+                      <span className="text-xs font-semibold">{nama}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-gray-500 mt-4 italic">
+                💡 Bertanggung jawab merapikan Lab Komputer dan memastikan proyektor/AC mati setelah kuliah.
+              </p>
+            </div>
+
+            {/* Quick tips */}
+            <div className={`rounded-3xl p-6 border bg-gradient-to-br from-indigo-950/40 to-purple-950/30 border-indigo-500/30`}>
+              <h3 className="font-bold text-sm text-indigo-300 mb-2 flex items-center gap-1.5">
+                <span>💡</span> Catatan Akademik
+              </h3>
+              <p className="text-xs text-gray-300 leading-relaxed">
+                Mahasiswa wajib hadir 10 menit sebelum kelas dimulai. Presensi kehadiran minimal 75% sebagai syarat mengikuti Ujian Akhir Semester (UAS).
+              </p>
+            </div>
+
           </div>
 
         </div>
-
-      </div>
+      )}
 
       {/* Modal Tambah Jadwal Kuliah */}
       {showTambah && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+        <div
+          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto"
           onClick={() => setShowTambah(false)}
         >
-          <div 
-            className={`w-full max-w-md rounded-3xl p-6 border shadow-2xl relative ${
+          <div
+            className={`w-[92%] sm:w-full max-w-lg max-h-[90vh] overflow-y-auto pb-8 rounded-3xl p-5 sm:p-6 border shadow-2xl relative ${
               isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'
             }`}
             onClick={e => e.stopPropagation()}
@@ -419,4 +440,3 @@ export default function Jadwal({ prodiList = initialProdi }) {
     </div>
   );
 }
-

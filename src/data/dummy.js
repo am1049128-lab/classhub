@@ -7,7 +7,6 @@ export const classInfo = {
   motto: "Bersatu, Berprestasi, Bersinar ✨",
   waliKelas: "Drs. Nurmansyah, MM, SI",
   heroImage: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200&q=80",
-  spotifyPlaylist: "https://open.spotify.com/playlist/37i9dQZF1DXdPec7aLTmlC",
 };
 
 export const initialProdi = [
@@ -169,12 +168,6 @@ export const siswa = [
   },
 ];
 
-export const pengumuman = [
-  { id: 1, title: "📢 Pengisian KRS & Konsultasi Dosen Wali", content: "Masa bimbingan akademik dan pengisian KRS semester genap dimulai tanggal 10-15 November 2026 melalui portal akademik kampus.", date: "2026-11-01", important: true },
-  { id: 2, title: "🏆 Prestasi Hackathon & Data Science Cup", content: "Selamat kepada tim delegasi FTIA yang berhasil meraih Juara 1 dalam kompetisi National Tech Challenge 2026!", date: "2026-10-28", important: false },
-  { id: 3, title: "📝 Jadwal Ujian Tengah Semester (UTS)", content: "UTS akan berlangsung serentak. Cek jadwal per mata kuliah dan ruang ujian masing-masing di tab Jadwal.", date: "2026-10-24", important: true },
-];
-
 export const jadwalPelajaran = {
   Senin: [
     { jam: "08.00–09.40", mapel: "Algoritma & Struktur Data", guru: "Dr. Ir. Agus Supriadi, M.Kom", prodi: "Ilmu Komputer", ruangan: "Lab Komputer 3" },
@@ -222,71 +215,6 @@ export const initialTugas = [
   { id: 4, prodi: "Semua", mapel: "Kalkulus Lanjut", judul: "Latihan Soal Integral Lipat Dua", deskripsi: "Kerjakan lembar kerja bab integral lipat untuk menentukan volume ruang", deadline: "2026-11-08", status: "Selesai", guru: "Dr. Yoga Pratama" },
   { id: 5, prodi: "Ilmu Komputer", mapel: "Basis Data", judul: "Normalisasi 1NF sampai 3NF", deskripsi: "Rancang ERD sistem e-commerce dan lakukan proses normalisasi tabel", deadline: "2026-11-15", status: "Belum", guru: "Ibu Dewi Kartika" },
   { id: 6, prodi: "Sistem Informasi", mapel: "Manajemen Bisnis", judul: "Presentasi Business Model Canvas", deskripsi: "Pilih 1 startup lokal dan bedah 9 blok BMC dalam bentuk slide presentasi", deadline: "2026-11-14", status: "Proses", guru: "Bpk. Danu Wijaya" },
-];
-
-export const initialMenfest = [
-  {
-    id: 1,
-    to_who: "Anak-anak Ilkom & SI 2026",
-    sender: "Anonim Gemas 🐱",
-    message: "Semangat buat yang lagi ngerjain tugas coding dan perancangan UML! Jangan lupa makan dan istirahat yaa, jangan begadang mulu ✨💻",
-    category: "Semangat",
-    color: "purple",
-    likes: 15,
-    created_at: "2026-11-05T08:30:00Z"
-  },
-  {
-    id: 2,
-    to_who: "Pengurus Angkatan FTIA",
-    sender: "Mahasiswa Santai",
-    message: "Keren banget websitenya makin rapi! Sekarang menu di atas dan bisa input profil sendiri per prodi, mantap pol 🚀🙌",
-    category: "Apresiasi",
-    color: "blue",
-    likes: 24,
-    created_at: "2026-11-04T15:10:00Z"
-  },
-  {
-    id: 3,
-    to_who: "Dosen Kalkulus & Alpro",
-    sender: "Pejuang Nilai A",
-    message: "Bapak/Ibu dosen, boleh dong tugas minggu depan dikurangi dikit, tugas praktikum lagi numpuk banget hehehe 🙏🥺",
-    category: "Curhat",
-    color: "rose",
-    likes: 38,
-    created_at: "2026-11-03T11:25:00Z"
-  },
-  {
-    id: 4,
-    to_who: "Teman-teman Prodi Aktuaria",
-    sender: "Secret Admirer",
-    message: "Kalian yang selalu teliti ngitung rumus anuitas dan probabilitas risiko bener-bener keren banget! Sukses terus yaa 📊🔥",
-    category: "Apresiasi",
-    color: "emerald",
-    likes: 19,
-    created_at: "2026-11-02T19:00:00Z"
-  }
-];
-
-// Alias untuk menjaga backward compatibility
-export const initialSaran = initialMenfest.map(m => ({
-  id: m.id,
-  isi: `[Untuk: ${m.to_who}] ${m.message}`,
-  waktu: m.created_at.slice(0, 10),
-  dibalas: false,
-}));
-
-export const linkPenting = [
-  { nama: "Portal SIAKAD Kampus", url: "https://siakad.mitrabangsa.ac.id", icon: "🎓", warna: "from-blue-500 to-indigo-600" },
-  { nama: "E-Learning / Moodle", url: "https://lms.mitrabangsa.ac.id", icon: "💻", warna: "from-purple-500 to-violet-600" },
-  { nama: "Google Drive Bersama", url: "https://drive.google.com", icon: "📁", warna: "from-amber-400 to-orange-500" },
-  { nama: "Perpustakaan Digital", url: "#", icon: "📚", warna: "from-emerald-400 to-teal-600" },
-  { nama: "Grup Discord / WA", url: "#", icon: "💬", warna: "from-pink-500 to-rose-600" },
-];
-
-export const initialArtikel = [
-  { id: 1, judul: "Panduan Belajar Git & GitHub untuk Mahasiswa IT", mapel: "Ilmu Komputer", penulis: "Naufal Haqqi", tanggal: "2026-11-01", tag: ["Git", "GitHub", "Coding"], isi: "Git adalah sistem kontrol versi terdistribusi yang wajib dikuasai setiap developer. Dalam artikel ini kita akan mempelajari commit, branch, merge, dan cara kolaborasi di GitHub..." },
-  { id: 2, judul: "Mengenal Metodologi Agile & Scrum dalam Proyek Software", mapel: "Sistem Informasi", penulis: "Keisha Maharani", tanggal: "2026-10-28", tag: ["Scrum", "Agile", "Manajemen"], isi: "Agile adalah pola pikir pengembangan perangkat lunak yang berfokus pada kolaborasi, fleksibilitas, dan pengiriman nilai secara cepat kepada pengguna..." },
-  { id: 3, judul: "Pengantar Teori Risiko dan Ilmu Aktuaria Modern", mapel: "Aktuaria", penulis: "Nayla Rahmawati", tanggal: "2026-10-25", tag: ["Aktuaria", "Risiko", "Statistika"], isi: "Ilmu aktuaria mengkombinasikan matematika, statistika, dan teori keuangan untuk menganalisis risiko finansial di industri asuransi dan investasi..." },
 ];
 
 export const galeri = [

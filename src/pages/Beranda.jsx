@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { classInfo as defaultClassInfo, pengumuman, initialTugas, galeri, initialProdi } from '../data/dummy';
+import { classInfo as defaultClassInfo, galeri, initialProdi } from '../data/dummy';
 import { useTheme } from '../context/ThemeContext';
 
 function CountdownCard({ tugas }) {
@@ -103,19 +103,33 @@ export default function Beranda({
   onOpenInputModal,
   anggotaList = [],
   prodiList = initialProdi,
-  classInfo = defaultClassInfo 
+  classInfo = defaultClassInfo,
+  tugasList = [],
+  tugasLoading = false,
+  menfestList = []
 }) {
   const { isDark } = useTheme();
+  const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
 
-  const [tugasList] = useState(() => {
-    const saved = localStorage.getItem('classhub_tugas_v1');
-    if (saved) {
-      try { return JSON.parse(saved); } catch {}
-    }
-    return initialTugas;
-  });
+  const liveActivities = [
+    ...tugasList
+      .map(tugas => ({
+        ...tugas,
+        activityType: 'tugas',
+        activityTimestamp: new Date(tugas.created_at || tugas.createdAt).getTime(),
+      }))
+      .filter(tugas => Number.isFinite(tugas.activityTimestamp) && tugas.activityTimestamp >= sevenDaysAgo),
+    ...menfestList
+      .map(menfest => ({
+        ...menfest,
+        activityType: 'menfest',
+        activityTimestamp: new Date(menfest.created_at).getTime(),
+      }))
+      .filter(menfest => Number.isFinite(menfest.activityTimestamp) && menfest.activityTimestamp >= sevenDaysAgo),
+  ].sort((a, b) => b.activityTimestamp - a.activityTimestamp);
 
-  const nearestTugas = [...tugasList]
+  const activeTugas = tugasList.filter(t => t.status !== 'Selesai');
+  const nearestTugas = [...activeTugas]
     .filter(t => t.status !== 'Selesai')
     .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
     .slice(0, 2);
@@ -125,10 +139,9 @@ export default function Beranda({
       
       {/* Hero Section */}
       <div className="relative rounded-3xl overflow-hidden min-h-[300px] sm:min-h-[340px] flex flex-col justify-end p-6 sm:p-10 shadow-2xl">
-        <img 
-          src={classInfo.heroImage || defaultClassInfo.heroImage} 
-          alt="Hero" 
-          className="absolute inset-0 w-full h-full object-cover" 
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-purple-900 to-slate-950"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/70 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-indigo-950/80 to-transparent" />
@@ -252,37 +265,43 @@ export default function Beranda({
               <span className="text-xl">📢</span> Papan Pengumuman Fakultas
             </h2>
             <span className="text-xs px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 font-bold">
-              Terbaru
+              7 Hari Terakhir
             </span>
           </div>
 
-          <div className="space-y-3.5">
-            {pengumuman.map(p => (
-              <div 
-                key={p.id} 
-                className={`p-4 rounded-2xl border-l-4 transition-all hover:translate-x-1 ${
-                  p.important 
-                    ? 'border-rose-500 bg-rose-500/5' 
-                    : 'border-indigo-500 bg-indigo-500/5'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-bold text-sm leading-snug">{p.title}</h3>
-                  {p.important && (
-                    <span className="text-[10px] font-bold bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full shrink-0">
-                      Penting
-                    </span>
-                  )}
-                </div>
-                <p className={`text-xs mt-1.5 leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                  {p.content}
-                </p>
-                <p className="text-[10px] text-gray-500 mt-2 font-medium">
-                  🗓️ {new Date(p.date).toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
-                </p>
-              </div>
-            ))}
-          </div>
+          {liveActivities.length === 0 ? (
+            <div className={`rounded-2xl border border-dashed p-8 text-center ${
+              isDark ? 'border-gray-700 text-gray-400' : 'border-gray-300 text-gray-500'
+            }`}>
+              <span className="text-3xl block mb-2">☕</span>
+              <p className="text-sm font-semibold">Belum ada pengumuman atau aktivitas baru dalam 7 hari terakhir.</p>
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              {liveActivities.map(activity => {
+                const isTask = activity.activityType === 'tugas';
+                const activityText = isTask
+                  ? `📝 Tugas Baru: ${activity.judul} (${activity.mapel}) — Deadline ${new Date(`${activity.deadline}T00:00:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                  : `💌 Menfest Baru dari ${activity.sender || 'Anonim'} untuk ${activity.to_who || 'Semua Orang'}`;
+
+                return (
+                  <div
+                    key={`${activity.activityType}-${activity.id}`}
+                    className={`p-4 rounded-2xl border-l-4 transition-all hover:translate-x-1 ${
+                      isTask
+                        ? 'border-indigo-500 bg-indigo-500/5'
+                        : 'border-pink-500 bg-pink-500/5'
+                    }`}
+                  >
+                    <h3 className="font-bold text-sm leading-snug">{activityText}</h3>
+                    <p className="text-[10px] text-gray-500 mt-2 font-medium">
+                      🗓️ {new Date(activity.activityTimestamp).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Kolom Kanan: Deadline Tugas & Ulang Tahun */}
@@ -304,7 +323,9 @@ export default function Beranda({
               </button>
             </div>
 
-            {nearestTugas.length === 0 ? (
+            {tugasLoading ? (
+              <p className="text-xs text-gray-400 py-4 text-center">Memuat deadline tugas...</p>
+            ) : nearestTugas.length === 0 ? (
               <p className="text-xs text-gray-400 py-4 text-center">Tidak ada deadline mendesak saat ini! 🎉</p>
             ) : (
               <div className="space-y-3">
@@ -348,25 +369,6 @@ export default function Beranda({
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Spotify Playlist */}
-      <div className={`rounded-3xl p-6 border ${
-        isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
-      }`}>
-        <h2 className="font-extrabold text-lg mb-4 flex items-center gap-2">
-          <span>🎵</span> Playlist Belajar & Coding Mahasiswa
-        </h2>
-        <iframe
-          src="https://open.spotify.com/embed/playlist/37i9dQZF1DXdPec7aLTmlC?utm_source=generator&theme=0"
-          width="100%"
-          height="152"
-          frameBorder="0"
-          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-          loading="lazy"
-          className="rounded-2xl"
-          title="Spotify Playlist Mahasiswa"
-        />
       </div>
 
     </div>

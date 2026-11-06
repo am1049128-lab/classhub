@@ -24,7 +24,7 @@ const CARD_COLORS = {
   amber: 'from-amber-500/20 to-orange-500/10 border-amber-500/30 text-amber-300',
 };
 
-export default function Menfest({ onOpenAdminModal }) {
+export default function Menfest({ onOpenAdminModal, onMenfestChange }) {
   const { isDark } = useTheme();
 
   const [menfestList, setMenfestList] = useState([]);
@@ -48,7 +48,9 @@ export default function Menfest({ onOpenAdminModal }) {
     try {
       setLoading(true);
       const res = await getMenfestList();
-      setMenfestList(res.data || []);
+      const nextList = res.data || [];
+      setMenfestList(nextList);
+      onMenfestChange?.(nextList);
       setIsSupabase(res.isSupabase || isSupabaseConfigured());
     } catch (err) {
       console.warn('Gagal memuat menfest:', err);
@@ -76,7 +78,11 @@ export default function Menfest({ onOpenAdminModal }) {
       };
 
       const res = await addMenfest(payload);
-      setMenfestList(prev => [res, ...prev]);
+      setMenfestList(prev => {
+        const nextList = [res, ...prev];
+        onMenfestChange?.(nextList);
+        return nextList;
+      });
 
       // Reset form
       setMessage('');
@@ -140,7 +146,7 @@ export default function Menfest({ onOpenAdminModal }) {
             )}
           </div>
 
-          <h1 className="text-3xl font-black tracking-tight">💌 Menfest & Aspirasi Mahasiswa</h1>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">💌 Menfest & Aspirasi Mahasiswa</h1>
           <p className={`text-sm mt-1 max-w-2xl ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
             Kirim pesan anonim, curahan hati, salam apresiasi, atau semangat untuk teman sekelas dan satu fakultas secara aman dan menyenangkan.
           </p>
@@ -162,7 +168,7 @@ export default function Menfest({ onOpenAdminModal }) {
         
         {/* KOLOM KIRI: FORM KIRIM MENFEST */}
         <div className="lg:col-span-1">
-          <div className={`sticky top-20 rounded-3xl p-5 sm:p-6 border shadow-xl ${
+          <div className={`lg:sticky lg:top-20 rounded-3xl p-5 sm:p-6 border shadow-xl ${
             isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'
           }`}>
             <div className="flex items-center gap-2 mb-4">

@@ -5,12 +5,11 @@ import Anggota from './pages/Anggota';
 import Jadwal from './pages/Jadwal';
 import Tugas from './pages/Tugas';
 import Menfest from './pages/Menfest';
-import Blog from './pages/Blog';
 import InputAnggotaModal from './components/InputAnggotaModal';
 import SuperAdminModal from './components/SuperAdminModal';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { initialProdi, classInfo as defaultClassInfo } from './data/dummy';
-import { getAnggotaList, getMenfestList } from './lib/supabase';
+import { getAnggotaList, getMenfestList, getTugasList } from './lib/supabase';
 
 function AppContent() {
   const [activePage, setActivePage] = useState('beranda');
@@ -45,19 +44,25 @@ function AppContent() {
 
   const [anggotaList, setAnggotaList] = useState([]);
   const [menfestList, setMenfestList] = useState([]);
+  const [tugasList, setTugasList] = useState([]);
+  const [tugasLoading, setTugasLoading] = useState(true);
 
   // Load Anggota & Menfest from Supabase / LocalStorage on mount
   useEffect(() => {
     async function initData() {
       try {
-        const [angRes, menRes] = await Promise.all([
+        const [angRes, menRes, tugasRes] = await Promise.all([
           getAnggotaList(),
-          getMenfestList()
+          getMenfestList(),
+          getTugasList()
         ]);
         setAnggotaList(angRes.data || []);
         setMenfestList(menRes.data || []);
+        setTugasList(tugasRes.data || []);
       } catch (e) {
         console.warn('Init data exception:', e);
+      } finally {
+        setTugasLoading(false);
       }
     }
     initData();
@@ -86,6 +91,9 @@ function AppContent() {
         anggotaList={anggotaList}
         prodiList={prodiList}
         classInfo={classInfo}
+        tugasList={tugasList}
+        tugasLoading={tugasLoading}
+        menfestList={menfestList}
       />
     ),
     prodi: (
@@ -107,13 +115,17 @@ function AppContent() {
       />
     ),
     jadwal: <Jadwal prodiList={prodiList} />,
-    tugas: <Tugas prodiList={prodiList} />,
-    menfest: <Menfest onOpenAdminModal={() => setIsAdminModalOpen(true)} />,
-    blog: <Blog />,
+    tugas: <Tugas prodiList={prodiList} onTugasChange={setTugasList} />,
+    menfest: (
+      <Menfest
+        onOpenAdminModal={() => setIsAdminModalOpen(true)}
+        onMenfestChange={setMenfestList}
+      />
+    ),
   };
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-200 ${
+    <div className={`min-h-screen w-full overflow-x-hidden flex flex-col transition-colors duration-200 ${
       isDark ? 'bg-gray-950 text-white' : 'bg-slate-50 text-gray-900'
     }`}>
       

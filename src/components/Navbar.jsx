@@ -1,5 +1,13 @@
 import { useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
+
+function MenuIcon({ open }) {
+  return open ? (
+    <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+  ) : (
+    <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+  );
+}
 import { classInfo, initialProdi } from '../data/dummy';
 
 const navItems = [
@@ -8,7 +16,6 @@ const navItems = [
   { id: 'jadwal', label: 'Jadwal Kuliah', icon: '📅' },
   { id: 'tugas', label: 'Tugas', icon: '📝' },
   { id: 'menfest', label: 'Menfest', icon: '💌' },
-  { id: 'blog', label: 'Blog & Materi', icon: '📚' },
 ];
 
 export default function Navbar({ 
@@ -22,6 +29,7 @@ export default function Navbar({
   const { isDark, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [prodiDropdownOpen, setProdiDropdownOpen] = useState(false);
+  const [mobileProdiOpen, setMobileProdiOpen] = useState(false);
 
   const handleNavClick = (pageId, prodiName = null) => {
     setActivePage(pageId);
@@ -65,7 +73,7 @@ export default function Navbar({
           </div>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1">
             {navItems.map(item => {
               const isActive = activePage === item.id;
 
@@ -148,15 +156,13 @@ export default function Navbar({
 
           {/* Action Buttons (Input Mandiri, Super Admin, Theme Toggle) */}
           <div className="flex items-center gap-2">
-            {/* Tombol Input Profil Mandiri */}
+            {/* Tombol Input Profil Mandiri (desktop/tablet) */}
             <button
               onClick={onOpenInputModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:opacity-95 shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
+              className="hidden sm:flex min-h-[44px] items-center gap-1.5 px-3 sm:px-3.5 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:opacity-95 hover:scale-[1.02] hover:brightness-105 shadow-md shadow-emerald-500/20 active:scale-95 transition-all duration-200"
               title="Isi biodata & foto anggota secara mandiri"
             >
-              <span>✍️</span>
-              <span className="hidden sm:inline">Input Profil Mandiri</span>
-              <span className="sm:hidden">Input</span>
+              <span>✍️</span><span>Input Profil Mandiri</span>
             </button>
 
             {/* Tombol Super Admin */}
@@ -176,7 +182,7 @@ export default function Navbar({
             {/* Dark / Light Mode Toggle */}
             <button
               onClick={toggleTheme}
-              className={`p-2 rounded-xl border text-sm transition-all ${
+              className={`min-w-[44px] min-h-[44px] p-2 rounded-xl border text-sm flex items-center justify-center transition-all ${
                 isDark
                   ? 'border-gray-800 bg-gray-900 text-amber-400 hover:bg-gray-800'
                   : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
@@ -189,11 +195,11 @@ export default function Navbar({
             {/* Mobile Hamburger Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className={`lg:hidden p-2 rounded-xl border text-base ${
+              className={`lg:hidden min-w-[44px] min-h-[44px] p-2 rounded-xl border text-base flex items-center justify-center ${
                 isDark ? 'border-gray-800 bg-gray-900 text-gray-200' : 'border-gray-200 bg-gray-50 text-gray-700'
               }`}
             >
-              {mobileMenuOpen ? '✕' : '☰'}
+              <MenuIcon open={mobileMenuOpen} />
             </button>
           </div>
         </div>
@@ -201,25 +207,46 @@ export default function Navbar({
 
       {/* Mobile Drawer Navigation */}
       {mobileMenuOpen && (
-        <div className={`lg:hidden border-t px-4 pt-3 pb-5 space-y-2 ${
+        <div className="fixed inset-0 top-16 z-50 bg-black/30 md:hidden" onClick={() => setMobileMenuOpen(false)}>
+        <div onClick={(event) => event.stopPropagation()} className={`border-t px-4 pt-3 pb-5 space-y-2 max-h-[calc(100vh-4rem)] overflow-y-auto ${
           isDark ? 'bg-gray-950 border-gray-800' : 'bg-white border-gray-200'
         }`}>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1.5">
             {navItems.map(item => (
-              <button
-                key={item.id}
-                onClick={() => handleNavClick(item.id)}
-                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-all ${
-                  activePage === item.id
-                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
-                    : isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-700'
-                }`}
-              >
-                <span>{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
+              item.id === 'prodi' ? (
+                <div key={item.id} className="space-y-1">
+                  <button
+                    onClick={() => setMobileProdiOpen(!mobileProdiOpen)}
+                    className={`w-full flex items-center justify-between gap-2 min-h-[44px] px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-all ${
+                      activePage === item.id
+                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
+                        : isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-700'
+                    }`}
+                  ><span className="flex items-center gap-2"><span>{item.icon}</span><span>{item.label}</span></span><span className={`transition-transform duration-200 ${mobileProdiOpen ? 'rotate-180' : ''}`}>▾</span></button>
+                  <div className={`grid transition-all duration-200 ease-out ${mobileProdiOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                    <div className="overflow-hidden pl-3 space-y-1">
+                      {['Semua', ...initialProdi].map(p => <button key={p} onClick={() => handleNavClick('prodi', p)} className={`w-full min-h-[40px] px-3 rounded-lg text-left text-xs ${selectedProdi === p ? 'bg-indigo-600 text-white' : isDark ? 'text-gray-400 hover:bg-gray-800' : 'text-gray-600 hover:bg-gray-200'}`}>{p === 'Semua' ? '🌟 Semua Mahasiswa' : `🎓 ${p}`}</button>)}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavClick(item.id)}
+                  className={`w-full flex items-center gap-2 min-h-[44px] px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-all hover:translate-x-0.5 ${
+                    activePage === item.id ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white' : isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-700'
+                  }`}
+                ><span>{item.icon}</span><span>{item.label}</span></button>
+              )
             ))}
           </div>
+
+          <button
+            onClick={onOpenInputModal}
+            className="w-full min-h-[44px] flex items-center gap-2 px-3 rounded-xl text-sm font-bold bg-gradient-to-r from-emerald-500 to-teal-600 text-white"
+          >
+            <span>✍️</span> Input Profil Mandiri
+          </button>
 
           {/* Quick Prodi Links in Mobile */}
           <div className={`mt-3 pt-3 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
@@ -227,7 +254,7 @@ export default function Navbar({
             <div className="flex flex-wrap gap-1.5">
               <button
                 onClick={() => handleNavClick('prodi', 'Semua')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                className={`min-h-[44px] px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center ${
                   selectedProdi === 'Semua' && activePage === 'prodi'
                     ? 'bg-indigo-600 text-white'
                     : isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
@@ -239,7 +266,7 @@ export default function Navbar({
                 <button
                   key={p}
                   onClick={() => handleNavClick('prodi', p)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
+                  className={`min-h-[44px] px-2.5 py-1 rounded-lg text-xs font-medium flex items-center ${
                     selectedProdi === p && activePage === 'prodi'
                       ? 'bg-indigo-600 text-white'
                       : isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
@@ -250,6 +277,7 @@ export default function Navbar({
               ))}
             </div>
           </div>
+        </div>
         </div>
       )}
     </header>

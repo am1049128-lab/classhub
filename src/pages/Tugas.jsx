@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { initialTugas, initialProdi } from '../data/dummy';
+import { useState, useEffect, useCallback } from 'react';
+import { initialProdi } from '../data/dummy';
 import { useTheme } from '../context/ThemeContext';
+import { getTugasList, addTugas, updateTugasStatus, deleteTugasItem } from '../lib/supabase';
 
 const STATUS_COLORS = {
   'Belum': 'bg-rose-500/20 text-rose-400 border-rose-500/40',
@@ -10,20 +11,12 @@ const STATUS_COLORS = {
 
 const STATUS_CYCLE = { 'Belum': 'Proses', 'Proses': 'Selesai', 'Selesai': 'Belum' };
 
-export default function Tugas({ prodiList = initialProdi }) {
+export default function Tugas({ prodiList = initialProdi, onTugasChange }) {
   const { isDark } = useTheme();
 
-  const [tugasList, setTugasList] = useState(() => {
-    const saved = localStorage.getItem('classhub_tugas_v2') || localStorage.getItem('classhub_tugas_v1');
-    if (saved) {
-      try { 
-        const parsed = JSON.parse(saved);
-        return parsed.map(t => t.prodi === 'Teknik Informatika' ? { ...t, prodi: 'Ilmu Komputer' } : t);
-      } catch {}
-    }
-    return initialTugas;
-  });
-
+  const [tugasList, setTugasList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isCloud, setIsCloud] = useState(false);
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [filterProdi, setFilterProdi] = useState('Semua');
   const [showTambah, setShowTambah] = useState(false);
@@ -37,25 +30,68 @@ export default function Tugas({ prodiList = initialProdi }) {
     guru: '',
   });
 
-  useEffect(() => {
-    localStorage.setItem('classhub_tugas_v1', JSON.stringify(tugasList));
-  }, [tugasList]);
+  // Fetch tugas dari Supabase / localStorage
+  const fetchTugas = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, isSupabase } = await getTugasList();
+      setTugasList(data);
+      onTugasChange?.(data);
+      setIsCloud(isSupabase);
+    } catch (err) {
+      console.warn('Gagal fetch tugas:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [onTugasChange]);
 
-  const toggleStatus = (id) => {
-    setTugasList(prev => prev.map(t => t.id === id ? { ...t, status: STATUS_CYCLE[t.status] || 'Belum' } : t));
+  useEffect(() => {
+    fetchTugas();
+  }, [fetchTugas]);
+
+  const toggleStatus = async (id) => {
+    const task = tugasList.find(t => t.id === id);
+    if (!task) return;
+    const newStatus = STATUS_CYCLE[task.status] || 'Belum';
+
+    // Optimistic update
+    setTugasList(prev => {
+      const next = prev.map(t => t.id === id ? { ...t, status: newStatus } : t);
+      onTugasChange?.(next);
+      return next;
+    });
+
+    try {
+      await updateTugasStatus(id, newStatus);
+    } catch (err) {
+      console.warn('Gagal update status:', err);
+      // Rollback on error
+      setTugasList(prev => {
+        const next = prev.map(t => t.id === id ? { ...t, status: task.status } : t);
+        onTugasChange?.(next);
+        return next;
+      });
+    }
   };
 
-  const handleTambahTugas = (e) => {
+  const handleTambahTugas = async (e) => {
     e.preventDefault();
     if (!formTugas.mapel || !formTugas.judul || !formTugas.deadline) return;
 
-    const newTask = {
-      ...formTugas,
-      id: Date.now(),
-      status: 'Belum',
-    };
+    try {
+      const record = await addTugas({
+        ...formTugas,
+        status: 'Belum',
+      });
+      setTugasList(prev => {
+        const next = [record, ...prev];
+        onTugasChange?.(next);
+        return next;
+      });
+    } catch (err) {
+      console.warn('Gagal tambah tugas:', err);
+    }
 
-    setTugasList(prev => [newTask, ...prev]);
     setFormTugas({
       mapel: '',
       judul: '',
@@ -67,9 +103,23 @@ export default function Tugas({ prodiList = initialProdi }) {
     setShowTambah(false);
   };
 
-  const handleHapusTugas = (id) => {
+  const handleHapusTugas = async (id) => {
     if (window.confirm('Yakin ingin menghapus tugas ini?')) {
-      setTugasList(prev => prev.filter(t => t.id !== id));
+      // Optimistic update
+      const backup = tugasList;
+      setTugasList(prev => {
+        const next = prev.filter(t => t.id !== id);
+        onTugasChange?.(next);
+        return next;
+      });
+
+      try {
+        await deleteTugasItem(id);
+      } catch (err) {
+        console.warn('Gagal hapus tugas:', err);
+        setTugasList(backup);
+        onTugasChange?.(backup); // Rollback
+      }
     }
   };
 
@@ -93,8 +143,13 @@ export default function Tugas({ prodiList = initialProdi }) {
               Task Manager
             </span>
             <span className="text-xs text-gray-400">• Deadline & Penugasan Kuliah</span>
+            {isCloud && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Data tersinkron dengan Supabase">
+                ☁️ Cloud
+              </span>
+            )}
           </div>
-          <h1 className="text-3xl font-black tracking-tight">📝 Daftar Tugas Kuliah</h1>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">📝 Daftar Tugas Kuliah</h1>
           <p className={`text-sm mt-1 max-w-2xl ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
             Kelola tugas perkuliahan, praktikum, dan deadline tugas per program studi. Klik status tugas untuk mengubahnya menjadi Proses atau Selesai.
           </p>
@@ -110,8 +165,8 @@ export default function Tugas({ prodiList = initialProdi }) {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
-        <div 
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div
           onClick={() => setFilterStatus('Belum')}
           className={`cursor-pointer p-4 rounded-2xl border text-center transition-all hover:scale-105 ${
             filterStatus === 'Belum' ? 'ring-2 ring-rose-500' : ''
@@ -121,7 +176,7 @@ export default function Tugas({ prodiList = initialProdi }) {
           <p className="text-xs text-gray-400 mt-1 font-semibold">📌 Belum Dikerjakan</p>
         </div>
 
-        <div 
+        <div
           onClick={() => setFilterStatus('Proses')}
           className={`cursor-pointer p-4 rounded-2xl border text-center transition-all hover:scale-105 ${
             filterStatus === 'Proses' ? 'ring-2 ring-amber-500' : ''
@@ -131,7 +186,7 @@ export default function Tugas({ prodiList = initialProdi }) {
           <p className="text-xs text-gray-400 mt-1 font-semibold">⏳ Sedang Proses</p>
         </div>
 
-        <div 
+        <div
           onClick={() => setFilterStatus('Selesai')}
           className={`cursor-pointer p-4 rounded-2xl border text-center transition-all hover:scale-105 ${
             filterStatus === 'Selesai' ? 'ring-2 ring-emerald-500' : ''
@@ -181,8 +236,16 @@ export default function Tugas({ prodiList = initialProdi }) {
         </div>
       </div>
 
+      {/* Loading State */}
+      {loading && (
+        <div className="text-center py-12 text-gray-400 space-y-2">
+          <span className="text-4xl block animate-spin">⏳</span>
+          <p className="font-semibold text-sm">Memuat daftar tugas...</p>
+        </div>
+      )}
+
       {/* Task Cards Grid */}
-      {filteredTugas.length === 0 ? (
+      {!loading && filteredTugas.length === 0 && (
         <div className={`p-12 text-center rounded-3xl border ${
           isDark ? 'bg-gray-900 border-gray-800 text-gray-400' : 'bg-white border-gray-200 text-gray-500'
         }`}>
@@ -190,7 +253,9 @@ export default function Tugas({ prodiList = initialProdi }) {
           <p className="font-bold text-base">Tidak ada tugas dengan kriteria ini!</p>
           <p className="text-xs mt-1">Semua tugas sudah diselesaikan atau belum ada tugas yang ditambahkan.</p>
         </div>
-      ) : (
+      )}
+
+      {!loading && filteredTugas.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredTugas.map(t => {
             const now = new Date();
@@ -203,8 +268,8 @@ export default function Tugas({ prodiList = initialProdi }) {
               <div
                 key={t.id}
                 className={`rounded-3xl p-5 border flex flex-col justify-between transition-all hover:-translate-y-1 hover:shadow-xl ${
-                  isUrgent 
-                    ? 'border-rose-500/50 bg-rose-500/5' 
+                  isUrgent
+                    ? 'border-rose-500/50 bg-rose-500/5'
                     : isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
                 }`}
               >
@@ -269,12 +334,12 @@ export default function Tugas({ prodiList = initialProdi }) {
 
       {/* MODAL TAMBAH TUGAS */}
       {showTambah && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+        <div
+          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto"
           onClick={() => setShowTambah(false)}
         >
-          <div 
-            className={`w-full max-w-md rounded-3xl p-6 border shadow-2xl relative ${
+          <div
+            className={`w-[92%] sm:w-full max-w-lg max-h-[90vh] overflow-y-auto pb-8 rounded-3xl p-5 sm:p-6 border shadow-2xl relative ${
               isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'
             }`}
             onClick={e => e.stopPropagation()}
@@ -393,4 +458,3 @@ export default function Tugas({ prodiList = initialProdi }) {
     </div>
   );
 }
-

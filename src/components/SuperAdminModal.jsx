@@ -174,7 +174,7 @@ export default function SuperAdminModal({
       onClick={onClose}
     >
       <div 
-        className={`w-full max-w-4xl rounded-3xl shadow-2xl border my-6 relative transition-all overflow-hidden ${
+        className={`w-[92%] sm:w-full max-w-4xl max-h-[90vh] overflow-y-auto pb-8 rounded-3xl shadow-2xl border my-6 relative transition-all ${
           isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'
         }`}
         onClick={e => e.stopPropagation()}

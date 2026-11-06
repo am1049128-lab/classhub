@@ -132,7 +132,7 @@ export default function InputAnggotaModal({ isOpen, onClose, onAnggotaAdded, pro
       onClick={onClose}
     >
       <div 
-        className={`w-full max-w-lg rounded-3xl p-6 sm:p-8 shadow-2xl border my-8 relative transition-all ${
+        className={`w-[92%] sm:w-full max-w-lg max-h-[90vh] overflow-y-auto pb-8 rounded-3xl p-6 sm:p-8 shadow-2xl border my-8 relative transition-all ${
           isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'
         }`}
         onClick={e => e.stopPropagation()}

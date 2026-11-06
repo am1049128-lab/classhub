@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { jadwalPiket, initialProdi } from '../data/dummy';
+import { initialProdi } from '../data/dummy';
 import { useTheme } from '../context/ThemeContext';
 import { getJadwalList, addJadwal, deleteJadwalItem } from '../lib/supabase';
 
@@ -61,14 +61,20 @@ export default function Jadwal({ prodiList = initialProdi }) {
     return j.prodi === filterProdi || j.prodi === 'Semua';
   });
 
-  const piketHari = jadwalPiket.find(p => p.hari === activeHari)?.anggota || [];
-
   const handleTambahJadwal = async (e) => {
     e.preventDefault();
-    if (!newJadwal.mapel || !newJadwal.jam) return;
+    const normalizedJadwal = {
+      ...newJadwal,
+      hari: newJadwal.hari.trim(),
+      mapel: newJadwal.mapel.trim(),
+      jam: newJadwal.jam.trim(),
+      guru: newJadwal.guru.trim(),
+      ruangan: newJadwal.ruangan.trim(),
+    };
+    if (!normalizedJadwal.mapel || !normalizedJadwal.jam) return;
 
     try {
-      const record = await addJadwal(newJadwal);
+      const record = await addJadwal(normalizedJadwal);
       setJadwalFlat(prev => [record, ...prev]);
     } catch (err) {
       console.warn('Gagal tambah jadwal:', err);
@@ -112,9 +118,9 @@ export default function Jadwal({ prodiList = initialProdi }) {
               </span>
             )}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">📅 Jadwal Kuliah & Piket</h1>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">📅 Jadwal Kuliah</h1>
           <p className={`text-sm mt-1 max-w-2xl ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-            Jadwal perkuliahan mingguan per program studi, ruangan kelas, laboratorium, dan jadwal piket harian.
+            Jadwal perkuliahan mingguan per program studi, ruangan kelas, dan laboratorium.
           </p>
         </div>
 
@@ -185,7 +191,7 @@ export default function Jadwal({ prodiList = initialProdi }) {
         </div>
       )}
 
-      {/* Main Grid: Jadwal Kuliah & Piket */}
+      {/* Main Grid: Jadwal Kuliah */}
       {!loading && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -238,6 +244,9 @@ export default function Jadwal({ prodiList = initialProdi }) {
                           {item.guru && (
                             <p className="text-xs text-gray-400 mt-0.5">👨‍🏫 {item.guru}</p>
                           )}
+                          {item.sks != null && (
+                            <p className="text-xs text-gray-400 mt-0.5">📚 {item.sks} SKS</p>
+                          )}
                         </div>
                       </div>
 
@@ -262,41 +271,9 @@ export default function Jadwal({ prodiList = initialProdi }) {
             )}
           </div>
 
-          {/* Kolom Kanan: Jadwal Piket & Info Kampus */}
+          {/* Kolom Kanan: Info Akademik */}
           <div className="space-y-6">
 
-            {/* Jadwal Piket / Lab */}
-            <div className={`rounded-3xl p-6 border ${
-              isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
-            }`}>
-              <h2 className="font-extrabold text-base mb-4 flex items-center gap-2">
-                <span>🧹</span>
-                <span>Piket / Tim Lab Hari {activeHari}</span>
-              </h2>
-
-              {piketHari.length === 0 ? (
-                <p className="text-xs text-gray-400">Tidak ada jadwal piket hari ini.</p>
-              ) : (
-                <div className="space-y-2">
-                  {piketHari.map((nama, i) => (
-                    <div
-                      key={i}
-                      className={`flex items-center gap-3 p-3 rounded-xl ${
-                        isDark ? 'bg-gray-800/80 text-gray-300' : 'bg-gray-50 text-gray-700'
-                      }`}
-                    >
-                      <span className="w-6 h-6 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xs">
-                        {i + 1}
-                      </span>
-                      <span className="text-xs font-semibold">{nama}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p className="text-[11px] text-gray-500 mt-4 italic">
-                💡 Bertanggung jawab merapikan Lab Komputer dan memastikan proyektor/AC mati setelah kuliah.
-              </p>
-            </div>
 
             {/* Quick tips */}
             <div className={`rounded-3xl p-6 border bg-gradient-to-br from-indigo-950/40 to-purple-950/30 border-indigo-500/30`}>

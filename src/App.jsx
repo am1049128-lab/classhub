@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
+import { safeGet, safeSet, safeSessionGet, safeSessionSet, safeSessionRemove } from './utils/storage';
 import Navbar from './components/Navbar';
 import Beranda from './pages/Beranda';
 import Anggota from './pages/Anggota';
 import Jadwal from './pages/Jadwal';
 import Tugas from './pages/Tugas';
 import Menfest from './pages/Menfest';
-import InputAnggotaModal from './components/InputAnggotaModal';
-import SuperAdminModal from './components/SuperAdminModal';
+import Admin from './pages/Admin';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { initialProdi, classInfo as defaultClassInfo } from './data/dummy';
 import { getAnggotaList, getMenfestList, getTugasList } from './lib/supabase';
@@ -14,40 +14,47 @@ import { getAnggotaList, getMenfestList, getTugasList } from './lib/supabase';
 function AppContent() {
   const [activePage, setActivePage] = useState('beranda');
   const [selectedProdi, setSelectedProdi] = useState('Semua');
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => (
+    safeSessionGet('classhub_admin_session') === 'authenticated'
+  ));
+
+  const handleAdminLogin = () => {
+    safeSessionSet('classhub_admin_session', 'authenticated');
+    setIsAdminLoggedIn(true);
+  };
+
+  const handleAdminLogout = () => {
+    safeSessionRemove('classhub_admin_session');
+    setIsAdminLoggedIn(false);
+    setActivePage('beranda');
+  };
   const { isDark } = useTheme();
 
-  // State modals
-  const [isInputModalOpen, setIsInputModalOpen] = useState(false);
-  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
-
-  // Dynamic state
   const [prodiList, setProdiList] = useState(() => {
-    const saved = localStorage.getItem('classhub_prodi_list_v2') || localStorage.getItem('classhub_prodi_list_v1');
-    if (saved) {
-      try { 
-        const parsed = JSON.parse(saved);
-        // Migrasikan jika ada "Teknik Informatika" menjadi "Ilmu Komputer"
-        const migrated = parsed.map(p => p === 'Teknik Informatika' ? 'Ilmu Komputer' : p);
-        return migrated;
-      } catch {}
-    }
+    const saved = safeGet('classhub_prodi_list', safeGet('classhub_prodi_list_v2', safeGet('classhub_prodi_list_v1')));
+    if (Array.isArray(saved)) return saved.map(p => p === 'Teknik Informatika' ? 'Ilmu Komputer' : p);
     return initialProdi;
   });
 
   const [classInfo, setClassInfo] = useState(() => {
-    const saved = localStorage.getItem('classhub_class_info_v1');
-    if (saved) {
-      try { return JSON.parse(saved); } catch {}
-    }
-    return defaultClassInfo;
+    const saved = safeGet('classhub_class_info_v1');
+    return saved && typeof saved === 'object' ? saved : defaultClassInfo;
   });
+  const handleUpdateProdi = (newProdiList) => {
+    setProdiList(newProdiList);
+    safeSet('classhub_prodi_list', newProdiList);
+  };
+
+  const handleUpdateClassInfo = (newInfo) => {
+    setClassInfo(newInfo);
+    safeSet('classhub_class_info_v1', newInfo);
+  };
 
   const [anggotaList, setAnggotaList] = useState([]);
   const [menfestList, setMenfestList] = useState([]);
   const [tugasList, setTugasList] = useState([]);
   const [tugasLoading, setTugasLoading] = useState(true);
 
-  // Load Anggota & Menfest from Supabase / LocalStorage on mount
   useEffect(() => {
     async function initData() {
       try {
@@ -68,26 +75,12 @@ function AppContent() {
     initData();
   }, []);
 
-  const handleUpdateProdi = (newProdiList) => {
-    setProdiList(newProdiList);
-    localStorage.setItem('classhub_prodi_list_v2', JSON.stringify(newProdiList));
-  };
-
-  const handleUpdateClassInfo = (newInfo) => {
-    setClassInfo(newInfo);
-    localStorage.setItem('classhub_class_info_v1', JSON.stringify(newInfo));
-  };
-
-  const handleAnggotaAdded = (newMember) => {
-    setAnggotaList(prev => [newMember, ...prev]);
-  };
 
   const pages = {
     beranda: (
-      <Beranda 
-        setActivePage={setActivePage} 
+      <Beranda
+        setActivePage={setActivePage}
         setSelectedProdi={setSelectedProdi}
-        onOpenInputModal={() => setIsInputModalOpen(true)}
         anggotaList={anggotaList}
         prodiList={prodiList}
         classInfo={classInfo}
@@ -97,29 +90,37 @@ function AppContent() {
       />
     ),
     prodi: (
-      <Anggota 
+      <Anggota
         anggotaList={anggotaList}
         prodiList={prodiList}
         selectedProdi={selectedProdi}
         setSelectedProdi={setSelectedProdi}
-        onOpenInputModal={() => setIsInputModalOpen(true)}
       />
     ),
     anggota: (
-      <Anggota 
+      <Anggota
         anggotaList={anggotaList}
         prodiList={prodiList}
         selectedProdi={selectedProdi}
         setSelectedProdi={setSelectedProdi}
-        onOpenInputModal={() => setIsInputModalOpen(true)}
       />
     ),
     jadwal: <Jadwal prodiList={prodiList} />,
     tugas: <Tugas prodiList={prodiList} onTugasChange={setTugasList} />,
-    menfest: (
-      <Menfest
-        onOpenAdminModal={() => setIsAdminModalOpen(true)}
-        onMenfestChange={setMenfestList}
+    menfest: <Menfest onMenfestChange={setMenfestList} />,
+    admin: (
+      <Admin
+        isLoggedIn={isAdminLoggedIn}
+        onLogin={handleAdminLogin}
+        onLogout={handleAdminLogout}
+        anggotaList={anggotaList}
+        onUpdateAnggota={setAnggotaList}
+        prodiList={prodiList}
+        onUpdateProdi={handleUpdateProdi}
+        menfestList={menfestList}
+        onUpdateMenfest={setMenfestList}
+        classInfo={classInfo}
+        onUpdateClassInfo={handleUpdateClassInfo}
       />
     ),
   };
@@ -128,23 +129,18 @@ function AppContent() {
     <div className={`min-h-screen w-full overflow-x-hidden flex flex-col transition-colors duration-200 ${
       isDark ? 'bg-gray-950 text-white' : 'bg-slate-50 text-gray-900'
     }`}>
-      
-      {/* Top Navbar Header */}
-      <Navbar 
-        activePage={activePage} 
+      <Navbar
+        activePage={activePage}
         setActivePage={setActivePage}
-        onOpenInputModal={() => setIsInputModalOpen(true)}
-        onOpenAdminModal={() => setIsAdminModalOpen(true)}
         selectedProdi={selectedProdi}
         setSelectedProdi={setSelectedProdi}
+        prodiList={prodiList}
       />
 
-      {/* Main Content Area */}
       <main className="flex-1 pb-16">
         {pages[activePage] || pages.beranda}
       </main>
 
-      {/* Footer */}
       <footer className={`border-t py-8 px-4 text-center text-xs transition-colors ${
         isDark ? 'border-gray-900 bg-gray-950 text-gray-500' : 'border-gray-200 bg-white text-gray-400'
       }`}>
@@ -156,41 +152,9 @@ function AppContent() {
             <span>—</span>
             <span>{classInfo.name} • {classInfo.school}</span>
           </div>
-          <div className="flex items-center gap-4 text-[11px]">
-            <button onClick={() => setIsInputModalOpen(true)} className="hover:text-indigo-400">
-              ✍️ Input Mandiri
-            </button>
-            <button onClick={() => setIsAdminModalOpen(true)} className="hover:text-indigo-400">
-              🛡️ Super Admin
-            </button>
-            <span className="text-gray-600">|</span>
-            <span>&copy; {new Date().getFullYear()} Class Hub. All rights reserved.</span>
-          </div>
+          <span>&copy; {new Date().getFullYear()} Class Hub. All rights reserved.</span>
         </div>
       </footer>
-
-      {/* Modal Input Mandiri Anggota */}
-      <InputAnggotaModal
-        isOpen={isInputModalOpen}
-        onClose={() => setIsInputModalOpen(false)}
-        onAnggotaAdded={handleAnggotaAdded}
-        prodiList={prodiList}
-      />
-
-      {/* Modal Super Admin Panel */}
-      <SuperAdminModal
-        isOpen={isAdminModalOpen}
-        onClose={() => setIsAdminModalOpen(false)}
-        anggotaList={anggotaList}
-        onUpdateAnggota={setAnggotaList}
-        prodiList={prodiList}
-        onUpdateProdi={handleUpdateProdi}
-        menfestList={menfestList}
-        onUpdateMenfest={setMenfestList}
-        classInfo={classInfo}
-        onUpdateClassInfo={handleUpdateClassInfo}
-      />
-
     </div>
   );
 }

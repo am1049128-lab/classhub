@@ -1,54 +1,53 @@
 import { useState, useEffect } from 'react';
-import { classInfo as defaultClassInfo, galeri, initialProdi } from '../data/dummy';
+import { classInfo as defaultClassInfo, galeri as defaultGaleri, initialProdi } from '../data/dummy';
 import { useTheme } from '../context/ThemeContext';
+import { safeGet, safeSet } from '../utils/storage';
+
+function AnimatedCounter({ value, duration = 1350 }) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    const target = Math.max(0, Number(value) || 0);
+    const start = performance.now();
+    let frameId;
+    const animate = (now) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(Math.round(target * eased));
+      if (progress < 1) frameId = requestAnimationFrame(animate);
+    };
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
+  }, [value, duration]);
+
+  return <>{displayValue.toLocaleString('id-ID')}</>;
+}
 
 function CountdownCard({ tugas }) {
   const [timeLeft, setTimeLeft] = useState({});
   useEffect(() => {
-    const calc = () => {
-      const now = new Date();
-      const dead = new Date(tugas.deadline + 'T23:59:59');
-      const diff = dead - now;
+    const update = () => {
+      const value = String(tugas.deadline || '');
+      const deadline = new Date(value + (value.includes('T') ? '' : 'T23:59:59'));
+      const timestamp = deadline.getTime();
+      if (!Number.isFinite(timestamp)) return setTimeLeft({ invalid: true });
+      const diff = timestamp - Date.now();
       if (diff <= 0) return setTimeLeft({ expired: true });
-      setTimeLeft({
-        hari: Math.floor(diff / 86400000),
-        jam: Math.floor((diff % 86400000) / 3600000),
-        menit: Math.floor((diff % 3600000) / 60000),
-      });
+      const totalMinutes = Math.floor(diff / 60000);
+      setTimeLeft({ hari: Math.floor(totalMinutes / 1440), jam: Math.floor((totalMinutes % 1440) / 60), menit: totalMinutes % 60 });
     };
-    calc();
-    const t = setInterval(calc, 60000);
-    return () => clearInterval(t);
+    update();
+    const timer = setInterval(update, 60000);
+    return () => clearInterval(timer);
   }, [tugas.deadline]);
-
-  const isUrgent = timeLeft.hari <= 1;
+  const isUrgent = !timeLeft.invalid && !timeLeft.expired && timeLeft.hari <= 1;
   return (
-    <div className={`rounded-2xl p-4 border transition-all ${
-      isUrgent ? 'border-rose-500/40 bg-rose-500/10' : 'border-indigo-500/30 bg-indigo-500/10'
-    }`}>
+    <div className="rounded-2xl p-3 bg-white/5">
       <div className="flex items-start justify-between mb-2">
-        <div>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-            isUrgent ? 'bg-rose-500/20 text-rose-400' : 'bg-indigo-500/20 text-indigo-400'
-          }`}>
-            {tugas.mapel}
-          </span>
-          <p className="font-bold text-sm mt-1">{tugas.judul}</p>
-        </div>
+        <div><span className="text-[10px] font-bold">{tugas.mapel}</span><p className="font-bold text-sm mt-1">{tugas.judul}</p></div>
         <span className="text-xl">{isUrgent ? '🚨' : '📌'}</span>
       </div>
-      {timeLeft.expired ? (
-        <p className="text-rose-400 text-xs font-bold">Tenggat sudah lewat!</p>
-      ) : (
-        <div className="flex gap-2 mt-2">
-          {[['Hari', timeLeft.hari], ['Jam', timeLeft.jam], ['Menit', timeLeft.menit]].map(([label, val]) => (
-            <div key={label} className={`flex-1 text-center rounded-xl py-1.5 ${isUrgent ? 'bg-rose-500/20' : 'bg-indigo-500/20'}`}>
-              <p className={`text-base font-black ${isUrgent ? 'text-rose-300' : 'text-indigo-300'}`}>{val}</p>
-              <p className="text-[10px] text-gray-400 font-semibold">{label}</p>
-            </div>
-          ))}
-        </div>
-      )}
+      {timeLeft.invalid ? <p className="text-rose-400 text-xs font-bold">Format tanggal tidak valid</p> : timeLeft.expired ? <p className="text-rose-400 text-xs font-bold">Deadline Terlewat</p> : <div className="flex gap-2 mt-2">{[['Hari', timeLeft.hari], ['Jam', timeLeft.jam], ['Menit', timeLeft.menit]].map(([label, val]) => <div key={label} className="flex-1 text-center rounded-xl py-1.5"><p className="text-base font-black">{val}</p><p className="text-[10px] text-gray-400 font-semibold">{label}</p></div>)}</div>}
     </div>
   );
 }
@@ -98,9 +97,8 @@ function BirthdayWidget({ siswaList = [] }) {
 }
 
 export default function Beranda({ 
-  setActivePage, 
-  setSelectedProdi, 
-  onOpenInputModal,
+  setActivePage,
+  setSelectedProdi,
   anggotaList = [],
   prodiList = initialProdi,
   classInfo = defaultClassInfo,
@@ -109,7 +107,28 @@ export default function Beranda({
   menfestList = []
 }) {
   const { isDark } = useTheme();
+  const [galeri, setGaleri] = useState(defaultGaleri);
   const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+
+  useEffect(() => {
+    const loadGaleri = () => {
+      const saved = safeGet('classhub_galeri_data');
+      if (!Array.isArray(saved)) {
+        safeSet('classhub_galeri_data', defaultGaleri);
+        setGaleri(defaultGaleri);
+        return;
+      }
+      setGaleri(saved);
+    };
+
+    loadGaleri();
+    window.addEventListener('storage', loadGaleri);
+    window.addEventListener('classhub:galeri-updated', loadGaleri);
+    return () => {
+      window.removeEventListener('storage', loadGaleri);
+      window.removeEventListener('classhub:galeri-updated', loadGaleri);
+    };
+  }, []);
 
   const liveActivities = [
     ...tugasList
@@ -164,9 +183,6 @@ export default function Beranda({
             {classInfo.motto}
           </p>
 
-          <p className="text-gray-300 text-xs">
-            Dosen Pembimbing / Wali: <strong className="text-white">{classInfo.waliKelas}</strong>
-          </p>
 
           {/* Quick Action Buttons on Hero */}
           <div className="flex flex-wrap gap-2.5 pt-3">
@@ -175,12 +191,6 @@ export default function Beranda({
               className="px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-gray-900 hover:bg-gray-100 shadow-lg active:scale-95 transition-all"
             >
               👥 Direktori Prodi & Anggota
-            </button>
-            <button
-              onClick={onOpenInputModal}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:opacity-95 shadow-lg active:scale-95 transition-all"
-            >
-              ✍️ Input Profil Mandiri
             </button>
             <button
               onClick={() => setActivePage('menfest')}
@@ -244,7 +254,7 @@ export default function Beranda({
           >
             <div className="text-2xl mb-1">{stat.icon}</div>
             <div className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-              {stat.value}
+              <AnimatedCounter value={stat.value} />
             </div>
             <div className={`text-xs mt-0.5 font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               {stat.label}
@@ -348,6 +358,23 @@ export default function Beranda({
 
       </div>
 
+      {/* Arsip Foto Kelas - Google Drive */}
+      <section className="relative overflow-hidden rounded-3xl border border-indigo-400/20 bg-gradient-to-br from-indigo-950 via-purple-900 to-slate-950 p-6 sm:p-8 shadow-2xl">
+        <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-purple-500/20 blur-3xl" />
+        <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="max-w-2xl">
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+              ☁️ Folder Bersama Aktif
+            </span>
+            <h2 className="mt-4 text-2xl sm:text-3xl font-black text-white">📸 Galeri Kenangan Kelas <span className="text-indigo-300">(Semester 1 — Lulus)</span></h2>
+            <p className="mt-3 text-sm leading-relaxed text-indigo-100/80">Wadah penyimpanan bersama seluruh dokumentasi kegiatan, makrab, praktikum, dan momen kebersamaan kita dari awal masuk kuliah hingga wisuda nanti.</p>
+          </div>
+          <a href="https://drive.google.com/drive/folders/1OEuVn9rTkwkznpdgTegRijwDPI5wq-et?usp=drive_link" target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-indigo-900 shadow-lg transition hover:-translate-y-0.5 hover:bg-indigo-50">
+            Buka Google Drive Dokumentasi <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+      </section>
+
       {/* Galeri Kegiatan Mahasiswa */}
       <div className={`rounded-3xl p-6 border ${
         isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
@@ -356,15 +383,18 @@ export default function Beranda({
           <span>📸</span> Galeri Dokumentasi & Kegiatan
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3.5">
-          {galeri.map(g => (
-            <div key={g.id} className="group relative rounded-2xl overflow-hidden aspect-video shadow-md">
-              <img 
-                src={g.url} 
-                alt={g.caption} 
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+          {galeri.slice(0, 6).map(g => (
+            <div key={g.id} className="group relative aspect-video overflow-hidden rounded-2xl shadow-md">
+              <img
+                src={g.url}
+                alt={g.caption}
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
-                <p className="text-white text-xs font-semibold">{g.caption}</p>
+              <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/80 via-black/20 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
+                <div>
+                  <p className="text-xs font-semibold text-white">{g.caption}</p>
+                  {g.date && <p className="mt-0.5 text-[10px] text-white/70">{g.date}</p>}
+                </div>
               </div>
             </div>
           ))}

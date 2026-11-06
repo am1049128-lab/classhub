@@ -1,12 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { siswa as initialSiswa, jadwalPelajaran as dummyJadwal, initialTugas as dummyTugas } from '../data/dummy';
+import { safeGet, safeSet, safeRemove } from '../utils/storage';
 
 // Mendapatkan konfigurasi Supabase (mendukung .env dan input lewat UI Super Admin)
 export function getSupabaseConfig() {
   const envUrl = import.meta.env.VITE_SUPABASE_URL || '';
   const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-  const localUrl = localStorage.getItem('classhub_supabase_url') || '';
-  const localKey = localStorage.getItem('classhub_supabase_key') || '';
+  const localUrl = safeGet('classhub_supabase_url', '') || '';
+  const localKey = safeGet('classhub_supabase_key', '') || '';
 
   const url = (localUrl || envUrl).trim();
   const key = (localKey || envKey).trim();
@@ -73,11 +74,11 @@ export async function testSupabaseConnection(customUrl, customKey) {
 
 // Simpan config dari Super Admin UI
 export function saveSupabaseConfig(url, key) {
-  if (url) localStorage.setItem('classhub_supabase_url', url.trim());
-  else localStorage.removeItem('classhub_supabase_url');
+  if (url) safeSet('classhub_supabase_url', url.trim());
+  else safeRemove('classhub_supabase_url');
 
-  if (key) localStorage.setItem('classhub_supabase_key', key.trim());
-  else localStorage.removeItem('classhub_supabase_key');
+  if (key) safeSet('classhub_supabase_key', key.trim());
+  else safeRemove('classhub_supabase_key');
 
   supabaseInstance = null;
 }
@@ -88,18 +89,42 @@ export function saveSupabaseConfig(url, key) {
 const MENFEST_STORAGE_KEY = 'classhub_menfest_live_v2';
 
 export async function getMenfestList() {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const isFresh = item => item?.created_at && item.created_at >= sevenDaysAgo;
   const client = getSupabaseClient();
   if (client) {
     try {
       const { data, error } = await client
         .from('menfest')
         .select('*')
+        .gte('created_at', sevenDaysAgo)
         .order('created_at', { ascending: false });
 
       if (!error && Array.isArray(data)) {
-        // Sinkronkan ke local storage sebagai backup
-        localStorage.setItem(MENFEST_STORAGE_KEY, JSON.stringify(data));
-        return { data, isSupabase: true };
+        // Balasan disimpan sebagai overlay lokal agar aplikasi tetap kompatibel
+        // dengan schema lama yang belum memiliki kolom `replies`.
+        const saved = safeGet(MENFEST_STORAGE_KEY, []);
+        const localSaved = Array.isArray(saved) ? saved : [];
+        const merged = data
+          .filter(isFresh)
+          .map(item => {
+            const localItem = localSaved.find(savedItem => String(savedItem.id) === String(item.id));
+            return { ...item, replies: Array.isArray(item.replies) ? item.replies : (Array.isArray(localItem?.replies) ? localItem.replies : []) };
+          });
+        safeSet(MENFEST_STORAGE_KEY, merged);
+
+        // Cleanup cloud lama bersifat best-effort; RLS atau kegagalan jaringan
+        // tidak boleh menghalangi feed yang sudah berhasil dimuat.
+        try {
+          const { error: cleanupError } = await client
+            .from('menfest')
+            .delete()
+            .lt('created_at', sevenDaysAgo);
+          if (cleanupError) console.warn('Menfest cleanup dilewati:', cleanupError.message);
+        } catch (cleanupException) {
+          console.warn('Menfest cleanup exception, feed tetap digunakan:', cleanupException);
+        }
+        return { data: merged, isSupabase: true };
       }
       console.warn('Supabase menfest fetch error, fallback ke local storage:', error?.message);
     } catch (e) {
@@ -107,19 +132,10 @@ export async function getMenfestList() {
     }
   }
 
-  // Fallback Local Storage
-  const saved = localStorage.getItem(MENFEST_STORAGE_KEY);
-  if (saved) {
-    try {
-      return { data: JSON.parse(saved), isSupabase: false };
-    } catch {
-      // ignore
-    }
-  }
-
-  // Tidak ada seed dummy: feed Menfest hanya berisi aktivitas nyata.
-  localStorage.setItem(MENFEST_STORAGE_KEY, JSON.stringify([]));
-  return { data: [], isSupabase: false };
+  const saved = safeGet(MENFEST_STORAGE_KEY, []);
+  const fresh = Array.isArray(saved) ? saved.filter(isFresh) : [];
+  safeSet(MENFEST_STORAGE_KEY, fresh);
+  return { data: fresh, isSupabase: false };
 }
 
 export async function addMenfest(item) {
@@ -154,13 +170,32 @@ export async function addMenfest(item) {
     }
   }
 
-  // Simpan ke local storage
-  const current = JSON.parse(localStorage.getItem(MENFEST_STORAGE_KEY) || '[]');
+  const saved = safeGet(MENFEST_STORAGE_KEY, []);
+  const current = Array.isArray(saved) ? saved : [];
   const record = inserted || { ...payload, id: Date.now() };
-  const updated = [record, ...current];
-  localStorage.setItem(MENFEST_STORAGE_KEY, JSON.stringify(updated));
+  safeSet(MENFEST_STORAGE_KEY, [record, ...current]);
 
   return record;
+}
+
+export async function addMenfestReply(id, reply) {
+  const normalizedReply = {
+    id: reply.id || `reply_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    sender: reply.sender?.trim() || 'Anonim 🎭',
+    text: reply.text?.trim() || '',
+    created_at: reply.created_at || new Date().toISOString(),
+  };
+
+  if (!normalizedReply.text) throw new Error('Balasan tidak boleh kosong');
+
+  const saved = safeGet(MENFEST_STORAGE_KEY, []);
+  const current = Array.isArray(saved) ? saved : [];
+  const updated = current.map(item => item.id === id ? { ...item, replies: [...(Array.isArray(item.replies) ? item.replies : []), normalizedReply] } : item);
+  safeSet(MENFEST_STORAGE_KEY, updated);
+
+  // Balasan memakai overlay localStorage sehingga schema Supabase lama
+  // tetap kompatibel tanpa mengirim kolom baru yang belum tersedia.
+  return normalizedReply;
 }
 
 export async function toggleLikeMenfest(id, currentLikes = 0) {
@@ -179,9 +214,10 @@ export async function toggleLikeMenfest(id, currentLikes = 0) {
   }
 
   // Update local storage
-  const current = JSON.parse(localStorage.getItem(MENFEST_STORAGE_KEY) || '[]');
-  const updated = current.map(m => m.id === id ? { ...m, likes: nextLikes } : m);
-  localStorage.setItem(MENFEST_STORAGE_KEY, JSON.stringify(updated));
+  const saved = safeGet(MENFEST_STORAGE_KEY, []);
+  const current = Array.isArray(saved) ? saved : [];
+  const updated = current.map(m => String(m.id) === String(id) ? { ...m, likes: nextLikes } : m);
+  safeSet(MENFEST_STORAGE_KEY, updated);
   return nextLikes;
 }
 
@@ -195,9 +231,9 @@ export async function deleteMenfestItem(id) {
     }
   }
 
-  const current = JSON.parse(localStorage.getItem(MENFEST_STORAGE_KEY) || '[]');
-  const updated = current.filter(m => m.id !== id);
-  localStorage.setItem(MENFEST_STORAGE_KEY, JSON.stringify(updated));
+  const saved = safeGet(MENFEST_STORAGE_KEY, []);
+  const current = Array.isArray(saved) ? saved : [];
+  safeSet(MENFEST_STORAGE_KEY, current.filter(m => m.id !== id));
   return true;
 }
 
@@ -216,7 +252,7 @@ export async function getAnggotaList() {
         .order('name', { ascending: true });
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        localStorage.setItem(ANGGOTA_STORAGE_KEY, JSON.stringify(data));
+  safeSet(ANGGOTA_STORAGE_KEY, data);
         return { data, isSupabase: true };
       }
     } catch (e) {
@@ -224,22 +260,13 @@ export async function getAnggotaList() {
     }
   }
 
-  // Fallback Local Storage
-  const saved = localStorage.getItem(ANGGOTA_STORAGE_KEY);
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      // Normalisasi jika ada data lama dengan prodi Teknik Informatika
-      const normalized = parsed.map(a => a.prodi === 'Teknik Informatika' ? { ...a, prodi: 'Ilmu Komputer' } : a);
-      return { data: normalized, isSupabase: false };
-    } catch {
-      // ignore
-    }
+  const saved = safeGet(ANGGOTA_STORAGE_KEY, []);
+  if (Array.isArray(saved) && saved.length > 0) {
+    return { data: saved.map(normalizeSiswa), isSupabase: false };
   }
-
-  // Seed default data
-  localStorage.setItem(ANGGOTA_STORAGE_KEY, JSON.stringify(initialSiswa || []));
-  return { data: initialSiswa || [], isSupabase: false };
+  const seeded = Array.isArray(initialSiswa) ? initialSiswa : [];
+  safeSet(ANGGOTA_STORAGE_KEY, seeded);
+  return { data: seeded, isSupabase: false };
 }
 
 export async function saveAnggota(item) {
@@ -266,13 +293,10 @@ export async function saveAnggota(item) {
     }
   }
 
-  // Simpan ke local storage
-  const current = JSON.parse(localStorage.getItem(ANGGOTA_STORAGE_KEY) || '[]');
-  const exists = current.some(a => String(a.id) === String(record.id));
-  const updated = exists 
-    ? current.map(a => String(a.id) === String(record.id) ? record : a)
-    : [record, ...current];
-  localStorage.setItem(ANGGOTA_STORAGE_KEY, JSON.stringify(updated));
+  const saved = safeGet(ANGGOTA_STORAGE_KEY, []);
+  const current = Array.isArray(saved) ? saved : [];
+  const updated = [record, ...current.filter(existing => String(existing.id) !== String(record.id))];
+  safeSet(ANGGOTA_STORAGE_KEY, updated);
 
   return record;
 }
@@ -287,9 +311,10 @@ export async function deleteAnggotaItem(id) {
     }
   }
 
-  const current = JSON.parse(localStorage.getItem(ANGGOTA_STORAGE_KEY) || '[]');
-  const updated = current.filter(a => String(a.id) !== String(id));
-  localStorage.setItem(ANGGOTA_STORAGE_KEY, JSON.stringify(updated));
+  const saved = safeGet(ANGGOTA_STORAGE_KEY, []);
+  const current = Array.isArray(saved) ? saved : [];
+  const updated = current.filter(item => item.id !== id);
+  safeSet(ANGGOTA_STORAGE_KEY, updated);
   return true;
 }
 
@@ -315,7 +340,7 @@ export async function getJadwalList() {
 
       if (!error && Array.isArray(data)) {
         // Simpan ke localStorage sebagai backup
-        localStorage.setItem(JADWAL_STORAGE_KEY, JSON.stringify(data));
+        safeSet(JADWAL_STORAGE_KEY, data);
         return { data, isSupabase: true };
       }
       console.warn('Supabase jadwal fetch error, fallback ke local storage:', error?.message);
@@ -325,10 +350,10 @@ export async function getJadwalList() {
   }
 
   // Fallback Local Storage
-  const saved = localStorage.getItem(JADWAL_STORAGE_KEY);
+  const saved = safeGet(JADWAL_STORAGE_KEY, null);
   if (saved) {
     try {
-      const parsed = JSON.parse(saved);
+      const parsed = saved;
       // Handle baik format flat array maupun objek per-hari (migrasi data lama)
       if (Array.isArray(parsed)) {
         return { data: parsed, isSupabase: false };
@@ -353,7 +378,7 @@ export async function getJadwalList() {
       seeded.push({ ...item, hari, id: seeded.length + 1 });
     }
   }
-  localStorage.setItem(JADWAL_STORAGE_KEY, JSON.stringify(seeded));
+  safeSet(JADWAL_STORAGE_KEY, seeded);
   return { data: seeded, isSupabase: false };
 }
 
@@ -392,11 +417,11 @@ export async function addJadwal(item) {
     }
   }
 
-  // Simpan ke localStorage
-  const current = JSON.parse(localStorage.getItem(JADWAL_STORAGE_KEY) || '[]');
+  const saved = safeGet(JADWAL_STORAGE_KEY, []);
+  const current = Array.isArray(saved) ? saved : [];
   const record = inserted || { ...payload, id: Date.now() };
   const updated = [record, ...current];
-  localStorage.setItem(JADWAL_STORAGE_KEY, JSON.stringify(updated));
+  safeSet(JADWAL_STORAGE_KEY, updated);
 
   return record;
 }
@@ -436,13 +461,12 @@ export async function updateJadwal(id, updates) {
     }
   }
 
-  const current = JSON.parse(localStorage.getItem(JADWAL_STORAGE_KEY) || '[]');
+  const saved = safeGet(JADWAL_STORAGE_KEY, []);
+  const current = Array.isArray(saved) ? saved : [];
   const existing = current.find(j => j.id === id);
   const record = updatedRecord || (existing ? { ...existing, ...payload } : null);
-  const updated = record
-    ? current.map(j => j.id === id ? record : j)
-    : current;
-  localStorage.setItem(JADWAL_STORAGE_KEY, JSON.stringify(updated));
+  const updated = record ? current.map(j => j.id === id ? record : j) : current;
+  safeSet(JADWAL_STORAGE_KEY, updated);
 
   return record;
 }
@@ -461,9 +485,10 @@ export async function deleteJadwalItem(id) {
     }
   }
 
-  const current = JSON.parse(localStorage.getItem(JADWAL_STORAGE_KEY) || '[]');
+  const saved = safeGet(JADWAL_STORAGE_KEY, []);
+  const current = Array.isArray(saved) ? saved : [];
   const updated = current.filter(j => j.id !== id);
-  localStorage.setItem(JADWAL_STORAGE_KEY, JSON.stringify(updated));
+  safeSet(JADWAL_STORAGE_KEY, updated);
   return true;
 }
 
@@ -487,7 +512,7 @@ export async function getTugasList() {
         .order('created_at', { ascending: false });
 
       if (!error && Array.isArray(data)) {
-        localStorage.setItem(TUGAS_STORAGE_KEY, JSON.stringify(data));
+        safeSet(TUGAS_STORAGE_KEY, data);
         return { data, isSupabase: true };
       }
       console.warn('Supabase tugas fetch error, fallback ke local storage:', error?.message);
@@ -497,22 +522,16 @@ export async function getTugasList() {
   }
 
   // Fallback Local Storage
-  const saved = localStorage.getItem(TUGAS_STORAGE_KEY) || localStorage.getItem('classhub_tugas_v1');
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      const normalized = parsed.map(t =>
-        t.prodi === 'Teknik Informatika' ? { ...t, prodi: 'Ilmu Komputer' } : t
-      );
-      return { data: normalized, isSupabase: false };
-    } catch {
-      // ignore
-    }
+  const savedV2 = safeGet(TUGAS_STORAGE_KEY, null);
+  const savedV1 = safeGet('classhub_tugas_v1', null);
+  const parsed = Array.isArray(savedV2) ? savedV2 : savedV1;
+  if (Array.isArray(parsed)) {
+    const normalized = parsed.map(t => t.prodi === 'Teknik Informatika' ? { ...t, prodi: 'Ilmu Komputer' } : t);
+    return { data: normalized, isSupabase: false };
   }
-
-  // Seed default data
-  localStorage.setItem(TUGAS_STORAGE_KEY, JSON.stringify(dummyTugas || []));
-  return { data: dummyTugas || [], isSupabase: false };
+  const seeded = Array.isArray(dummyTugas) ? dummyTugas : [];
+  safeSet(TUGAS_STORAGE_KEY, seeded);
+  return { data: seeded, isSupabase: false };
 }
 
 /**
@@ -551,10 +570,11 @@ export async function addTugas(item) {
     }
   }
 
-  const current = JSON.parse(localStorage.getItem(TUGAS_STORAGE_KEY) || '[]');
+  const saved = safeGet(TUGAS_STORAGE_KEY, []);
+  const current = Array.isArray(saved) ? saved : [];
   const record = inserted || { ...payload, id: Date.now() };
   const updated = [record, ...current];
-  localStorage.setItem(TUGAS_STORAGE_KEY, JSON.stringify(updated));
+  safeSet(TUGAS_STORAGE_KEY, updated);
 
   return record;
 }
@@ -595,13 +615,12 @@ export async function updateTugas(id, updates) {
     }
   }
 
-  const current = JSON.parse(localStorage.getItem(TUGAS_STORAGE_KEY) || '[]');
+  const saved = safeGet(TUGAS_STORAGE_KEY, []);
+  const current = Array.isArray(saved) ? saved : [];
   const existing = current.find(t => t.id === id);
   const record = updatedRecord || (existing ? { ...existing, ...payload } : null);
-  const updated = record
-    ? current.map(t => t.id === id ? record : t)
-    : current;
-  localStorage.setItem(TUGAS_STORAGE_KEY, JSON.stringify(updated));
+  const updated = record ? current.map(t => t.id === id ? record : t) : current;
+  safeSet(TUGAS_STORAGE_KEY, updated);
 
   return record;
 }
@@ -624,9 +643,10 @@ export async function updateTugasStatus(id, newStatus) {
     }
   }
 
-  const current = JSON.parse(localStorage.getItem(TUGAS_STORAGE_KEY) || '[]');
+  const saved = safeGet(TUGAS_STORAGE_KEY, []);
+  const current = Array.isArray(saved) ? saved : [];
   const updated = current.map(t => t.id === id ? { ...t, status: newStatus } : t);
-  localStorage.setItem(TUGAS_STORAGE_KEY, JSON.stringify(updated));
+  safeSet(TUGAS_STORAGE_KEY, updated);
   return newStatus;
 }
 
@@ -644,9 +664,10 @@ export async function deleteTugasItem(id) {
     }
   }
 
-  const current = JSON.parse(localStorage.getItem(TUGAS_STORAGE_KEY) || '[]');
+  const saved = safeGet(TUGAS_STORAGE_KEY, []);
+  const current = Array.isArray(saved) ? saved : [];
   const updated = current.filter(t => t.id !== id);
-  localStorage.setItem(TUGAS_STORAGE_KEY, JSON.stringify(updated));
+  safeSet(TUGAS_STORAGE_KEY, updated);
   return true;
 }
 

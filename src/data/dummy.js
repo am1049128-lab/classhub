@@ -5,7 +5,6 @@ export const classInfo = {
   school: "UNIVERSITAS MITRA BANGSA",
   academicYear: "2026/2027",
   motto: "Bersatu, Berprestasi, Bersinar ✨",
-  waliKelas: "Drs. Nurmansyah, MM, SI",
   heroImage: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200&q=80",
 };
 
@@ -16,14 +15,24 @@ export const initialProdi = [
 ];
 
 export const pengurus = [
-  { role: "Dosen Pembimbing / Wali", name: "Drs. Nurmansyah, MM, SI", level: 0, photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=teacher1" },
-  { role: "Ketua Angkatan / Kelas", name: "Jay", level: 1, photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=rizky" },
-  { role: "Wakil Ketua", name: "Maulana", level: 1, photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=salsa" },
-  { role: "Sekretaris I", name: "Nina", level: 2, photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=naufal" },
-  { role: "Sekretaris II", name: "Nina Lagi", level: 2, photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=keisha" },
-  { role: "Bendahara I", name: "Ahmad", level: 2, photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=daffa" },
-  { role: "Bendahara II", name: "Ahmad", level: 2, photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=aulia" },
+  { id: 'ketua', role: "Ketua Kelas", name: "Jay", level: 1, photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=rizky" },
+  { id: 'wakil', role: "Wakil Ketua", name: "Maulana", level: 1, photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=salsa" },
+  { id: 'sekretaris-1', role: "Sekretaris I", name: "Nina", level: 2, photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=naufal" },
+  { id: 'sekretaris-2', role: "Sekretaris II", name: "Nina Lagi", level: 2, photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=keisha" },
+  { id: 'bendahara-1', role: "Bendahara I", name: "Ahmad", level: 2, photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=daffa" },
+  { id: 'bendahara-2', role: "Bendahara II", name: "Ahmad", level: 2, photo: "https://api.dicebear.com/7.x/avataaars/svg?seed=aulia" },
 ];
+
+export const strukturJabatan = [
+  { id: 'ketua', role: 'Ketua Kelas', level: 1 },
+  { id: 'wakil', role: 'Wakil Ketua', level: 1 },
+  { id: 'sekretaris-1', role: 'Sekretaris I', level: 2 },
+  { id: 'sekretaris-2', role: 'Sekretaris II', level: 2 },
+  { id: 'bendahara-1', role: 'Bendahara I', level: 2 },
+  { id: 'bendahara-2', role: 'Bendahara II', level: 2 },
+];
+
+export const defaultStruktur = pengurus;
 
 export const siswa = [
   {
@@ -199,14 +208,6 @@ export const jadwalPelajaran = {
     { jam: "13.30–15.10", mapel: "Simulasi Finansial", guru: "Bpk. Hendra Gunawan, FSAI", prodi: "Aktuaria", ruangan: "Lab Komputer 2" },
   ],
 };
-
-export const jadwalPiket = [
-  { hari: "Senin", anggota: ["Rizky Aditya (Ilkom)", "Salsabila Putri (SI)", "Nayla Rahmawati (Aktuaria)"] },
-  { hari: "Selasa", anggota: ["Naufal Haqqi (Ilkom)", "Keisha Maharani (SI)", "Rafi Kurniawan (Aktuaria)"] },
-  { hari: "Rabu", anggota: ["Daffa Ramadhan (Ilkom)", "Aulia Zahra (SI)", "Gibran Fauzi (Aktuaria)"] },
-  { hari: "Kamis", anggota: ["Farhan Maulana (Ilkom)", "Hana Safitri (SI)", "Melody Putri (Aktuaria)"] },
-  { hari: "Jumat", anggota: ["Bintang Pratama (Ilkom)", "Tiara Anggita (SI)"] },
-];
 
 export const initialTugas = [
   { id: 1, prodi: "Ilmu Komputer", mapel: "Algoritma & Pemrograman", judul: "Implementasi Binary Search Tree", deskripsi: "Buat program BST di C++/Python lengkap dengan visualisasi traversal", deadline: "2026-11-12", status: "Belum", guru: "Dr. Agus Supriadi" },

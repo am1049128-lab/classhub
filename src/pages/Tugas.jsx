@@ -11,6 +11,12 @@ const STATUS_COLORS = {
 
 const STATUS_CYCLE = { 'Belum': 'Proses', 'Proses': 'Selesai', 'Selesai': 'Belum' };
 
+const isValidDeadline = value => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T23:59:59`);
+  return Number.isFinite(date.getTime()) && date.toISOString().startsWith(value);
+};
+
 export default function Tugas({ prodiList = initialProdi, onTugasChange }) {
   const { isDark } = useTheme();
 
@@ -76,11 +82,17 @@ export default function Tugas({ prodiList = initialProdi, onTugasChange }) {
 
   const handleTambahTugas = async (e) => {
     e.preventDefault();
-    if (!formTugas.mapel || !formTugas.judul || !formTugas.deadline) return;
+    const mapel = formTugas.mapel.trim();
+    const judul = formTugas.judul.trim();
+    const deskripsi = formTugas.deskripsi.trim();
+    if (!mapel || !judul || !deskripsi || !isValidDeadline(formTugas.deadline)) return;
 
     try {
       const record = await addTugas({
         ...formTugas,
+        mapel,
+        judul,
+        deskripsi,
         status: 'Belum',
       });
       setTugasList(prev => {
@@ -93,12 +105,7 @@ export default function Tugas({ prodiList = initialProdi, onTugasChange }) {
     }
 
     setFormTugas({
-      mapel: '',
-      judul: '',
-      deskripsi: '',
-      deadline: '',
-      prodi: 'Semua',
-      guru: '',
+      mapel: '', judul: '', deskripsi: '', deadline: '', prodi: 'Semua', guru: '',
     });
     setShowTambah(false);
   };
@@ -258,11 +265,16 @@ export default function Tugas({ prodiList = initialProdi, onTugasChange }) {
       {!loading && filteredTugas.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredTugas.map(t => {
-            const now = new Date();
-            const dead = new Date(t.deadline + 'T23:59:59');
-            const diffDays = Math.ceil((dead - now) / 86400000);
-            const isUrgent = diffDays <= 1 && t.status !== 'Selesai';
-            const isExpired = diffDays < 0 && t.status !== 'Selesai';
+            const deadlineValue = String(t.deadline || '');
+            const isValidDate = isValidDeadline(deadlineValue)
+              || (deadlineValue.includes('T') && Number.isFinite(new Date(deadlineValue).getTime()));
+            const deadlineDate = isValidDate
+              ? new Date(deadlineValue + (deadlineValue.includes('T') ? '' : 'T23:59:59'))
+              : null;
+            const timestamp = deadlineDate?.getTime();
+            const diffDays = isValidDate ? Math.ceil((timestamp - Date.now()) / 86400000) : null;
+            const isExpired = isValidDate && diffDays < 0 && t.status !== 'Selesai';
+            const isUrgent = isValidDate && !isExpired && diffDays <= 1 && t.status !== 'Selesai';
 
             return (
               <div
@@ -312,8 +324,8 @@ export default function Tugas({ prodiList = initialProdi, onTugasChange }) {
                     <span className={`font-semibold ${
                       isExpired ? 'text-rose-400' : isUrgent ? 'text-amber-400' : 'text-gray-400'
                     }`}>
-                      {new Date(t.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
-                      {isExpired ? ' (Lewat)' : isUrgent ? ' (Besok!)' : ` (${diffDays} hari lagi)`}
+                      {isValidDate ? deadlineDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : 'Format tanggal tidak valid'}
+                      {isValidDate && (isExpired ? ' (Lewat)' : isUrgent ? ' (Besok!)' : ` (${Math.max(0, diffDays)} hari lagi)`)}
                     </span>
                   </div>
 

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import logoFtia from '../assets/logoftia.jpeg';
 import { useTheme } from '../context/ThemeContext';
 
 function MenuIcon({ open }) {
@@ -8,7 +9,7 @@ function MenuIcon({ open }) {
     <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
   );
 }
-import { classInfo, initialProdi } from '../data/dummy';
+import { classInfo } from '../data/dummy';
 
 const navItems = [
   { id: 'beranda', label: 'Beranda', icon: '🏠' },
@@ -19,12 +20,11 @@ const navItems = [
 ];
 
 export default function Navbar({ 
-  activePage, 
-  setActivePage, 
-  onOpenInputModal, 
-  onOpenAdminModal,
+  activePage,
+  setActivePage,
   selectedProdi,
-  setSelectedProdi 
+  setSelectedProdi,
+  prodiList = []
 }) {
   const { isDark, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -41,7 +41,7 @@ export default function Navbar({
   };
 
   return (
-    <header className={`sticky top-0 z-40 transition-colors duration-200 border-b backdrop-blur-md ${
+    <header className={`sticky top-0 z-50 transition-colors duration-200 border-b backdrop-blur-md ${
       isDark 
         ? 'bg-gray-950/90 border-gray-800 text-white' 
         : 'bg-white/95 border-gray-200 text-gray-900 shadow-sm'
@@ -54,9 +54,11 @@ export default function Navbar({
             onClick={() => handleNavClick('beranda')}
             className="flex items-center gap-3 cursor-pointer select-none shrink-0"
           >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center text-white font-black text-base shadow-lg shadow-indigo-500/25">
-              CH
-            </div>
+            <img
+              src={logoFtia}
+              alt="Logo FTIA"
+              className="h-10 w-10 sm:h-11 sm:w-11 object-cover rounded-xl shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+            />
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-base tracking-tight bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
@@ -98,9 +100,10 @@ export default function Navbar({
 
                     {/* Dropdown Menu per Prodi */}
                     <div 
-                      onMouseLeave={() => setProdiDropdownOpen(false)}
-                      className={`absolute left-0 mt-1 w-56 rounded-2xl p-2 border shadow-xl transition-all duration-200 z-50 ${
-                        prodiDropdownOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-2'
+                      onMouseEnter={() => setProdiDropdownOpen(true)}
+                       onMouseLeave={() => setProdiDropdownOpen(false)}
+                      className={`absolute left-0 top-full mt-1 w-56 rounded-2xl p-2 border shadow-xl transition-all duration-200 ease-out transform z-[60] ${
+                        prodiDropdownOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible translate-y-1 pointer-events-none'
                       } ${
                         isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-800'
                       }`}
@@ -117,19 +120,23 @@ export default function Navbar({
                         <span className="text-[10px] opacity-70">Semua Prodi</span>
                       </button>
                       <div className={`my-1 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`} />
-                      {initialProdi.map(p => (
-                        <button
-                          key={p}
-                          onClick={() => handleNavClick('prodi', p)}
-                          className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition-colors ${
-                            selectedProdi === p && isActive
-                              ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
-                              : isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-700'
-                          }`}
-                        >
-                          <span className="truncate">🎓 {p}</span>
-                        </button>
-                      ))}
+                      {prodiList.map((prodi, idx) => {
+                        const namaProdi = typeof prodi === 'string' ? prodi : prodi?.name || prodi?.nama;
+                        if (!namaProdi) return null;
+                        return (
+                          <button
+                            key={prodi?.id || idx}
+                            onClick={() => handleNavClick('prodi', namaProdi)}
+                            className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition-colors ${
+                              selectedProdi === namaProdi && isActive
+                                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
+                                : isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            <span className="truncate">🎓 {namaProdi}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -154,29 +161,21 @@ export default function Navbar({
             })}
           </nav>
 
-          {/* Action Buttons (Input Mandiri, Super Admin, Theme Toggle) */}
+          {/* Action Buttons (Admin Portal & Theme Toggle) */}
           <div className="flex items-center gap-2">
-            {/* Tombol Input Profil Mandiri (desktop/tablet) */}
+            {/* Admin Portal: akses mandiri ke halaman login admin */}
             <button
-              onClick={onOpenInputModal}
-              className="hidden sm:flex min-h-[44px] items-center gap-1.5 px-3 sm:px-3.5 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:opacity-95 hover:scale-[1.02] hover:brightness-105 shadow-md shadow-emerald-500/20 active:scale-95 transition-all duration-200"
-              title="Isi biodata & foto anggota secara mandiri"
-            >
-              <span>✍️</span><span>Input Profil Mandiri</span>
-            </button>
-
-            {/* Tombol Super Admin */}
-            <button
-              onClick={onOpenAdminModal}
-              className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all ${
-                isDark 
-                  ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20' 
-                  : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+              onClick={() => handleNavClick('admin')}
+              className={`min-h-[44px] flex items-center gap-1.5 px-2.5 sm:px-3 rounded-xl text-xs font-semibold border transition-all ${
+                isDark
+                  ? 'border-gray-700/80 bg-transparent text-gray-400 hover:border-gray-500 hover:text-gray-200 hover:bg-gray-900'
+                  : 'border-gray-200 bg-transparent text-gray-500 hover:border-gray-400 hover:text-gray-800 hover:bg-gray-50'
               }`}
-              title="Panel Super Admin untuk mengatur seluruh website"
+              title="Buka Admin Portal"
+              aria-label="Buka Admin Portal"
             >
-              <span>🛡️</span>
-              <span className="hidden md:inline">Super Admin</span>
+              <span aria-hidden="true">🔒</span>
+              <span className="hidden sm:inline">Admin Portal</span>
             </button>
 
             {/* Dark / Light Mode Toggle */}
@@ -225,7 +224,11 @@ export default function Navbar({
                   ><span className="flex items-center gap-2"><span>{item.icon}</span><span>{item.label}</span></span><span className={`transition-transform duration-200 ${mobileProdiOpen ? 'rotate-180' : ''}`}>▾</span></button>
                   <div className={`grid transition-all duration-200 ease-out ${mobileProdiOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
                     <div className="overflow-hidden pl-3 space-y-1">
-                      {['Semua', ...initialProdi].map(p => <button key={p} onClick={() => handleNavClick('prodi', p)} className={`w-full min-h-[40px] px-3 rounded-lg text-left text-xs ${selectedProdi === p ? 'bg-indigo-600 text-white' : isDark ? 'text-gray-400 hover:bg-gray-800' : 'text-gray-600 hover:bg-gray-200'}`}>{p === 'Semua' ? '🌟 Semua Mahasiswa' : `🎓 ${p}`}</button>)}
+                      {['Semua', ...prodiList].map((prodi, idx) => {
+                        const namaProdi = typeof prodi === 'string' ? prodi : prodi?.name || prodi?.nama;
+                        if (!namaProdi) return null;
+                        return <button key={prodi?.id || namaProdi || idx} onClick={() => handleNavClick('prodi', namaProdi)} className={`w-full min-h-[40px] px-3 rounded-lg text-left text-xs ${selectedProdi === namaProdi ? 'bg-indigo-600 text-white' : isDark ? 'text-gray-400 hover:bg-gray-800' : 'text-gray-600 hover:bg-gray-200'}`}>{namaProdi === 'Semua' ? '🌟 Semua Mahasiswa' : `🎓 ${namaProdi}`}</button>;
+                      })}
                     </div>
                   </div>
                 </div>
@@ -242,10 +245,12 @@ export default function Navbar({
           </div>
 
           <button
-            onClick={onOpenInputModal}
-            className="w-full min-h-[44px] flex items-center gap-2 px-3 rounded-xl text-sm font-bold bg-gradient-to-r from-emerald-500 to-teal-600 text-white"
+            onClick={() => handleNavClick('admin')}
+            className={`w-full min-h-[44px] flex items-center gap-2 px-3 rounded-xl text-sm font-semibold border ${
+              isDark ? 'border-gray-700 text-gray-300 bg-gray-900' : 'border-gray-200 text-gray-600 bg-gray-50'
+            }`}
           >
-            <span>✍️</span> Input Profil Mandiri
+            <span aria-hidden="true">🔒</span> Admin Portal
           </button>
 
           {/* Quick Prodi Links in Mobile */}
@@ -262,19 +267,23 @@ export default function Navbar({
               >
                 Semua
               </button>
-              {initialProdi.map(p => (
-                <button
-                  key={p}
-                  onClick={() => handleNavClick('prodi', p)}
-                  className={`min-h-[44px] px-2.5 py-1 rounded-lg text-xs font-medium flex items-center ${
-                    selectedProdi === p && activePage === 'prodi'
-                      ? 'bg-indigo-600 text-white'
-                      : isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
+              {prodiList.map((prodi, idx) => {
+                const namaProdi = typeof prodi === 'string' ? prodi : prodi?.name || prodi?.nama;
+                if (!namaProdi) return null;
+                return (
+                  <button
+                    key={prodi?.id || idx}
+                    onClick={() => handleNavClick('prodi', namaProdi)}
+                    className={`min-h-[44px] px-2.5 py-1 rounded-lg text-xs font-medium flex items-center ${
+                      selectedProdi === namaProdi && activePage === 'prodi'
+                        ? 'bg-indigo-600 text-white'
+                        : isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    {namaProdi}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

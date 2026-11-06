@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { 
-  getMenfestList, 
-  addMenfest, 
-  toggleLikeMenfest, 
+  getMenfestList,
+  addMenfest,
+  addMenfestReply,
+  toggleLikeMenfest,
   isSupabaseConfigured 
 } from '../lib/supabase';
 
@@ -24,7 +25,7 @@ const CARD_COLORS = {
   amber: 'from-amber-500/20 to-orange-500/10 border-amber-500/30 text-amber-300',
 };
 
-export default function Menfest({ onOpenAdminModal, onMenfestChange }) {
+export default function Menfest({ onMenfestChange }) {
   const { isDark } = useTheme();
 
   const [menfestList, setMenfestList] = useState([]);
@@ -38,10 +39,14 @@ export default function Menfest({ onOpenAdminModal, onMenfestChange }) {
   const [sender, setSender] = useState('');
   const [isAnon, setIsAnon] = useState(true);
   const [message, setMessage] = useState('');
-  const [category, setCategory] = useState('Curhat');
   const [selectedColor, setSelectedColor] = useState('purple');
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [expandedReplies, setExpandedReplies] = useState({});
+  const [replySender, setReplySender] = useState('');
+  const [replyText, setReplyText] = useState('');
+  const [replySubmitting, setReplySubmitting] = useState(false);
 
   // Load menfest
   const loadData = async () => {
@@ -73,7 +78,7 @@ export default function Menfest({ onOpenAdminModal, onMenfestChange }) {
         to_who: toWho.trim() || 'Semua Orang',
         sender: isAnon ? 'Anonim 🎭' : (sender.trim() || 'Anonim 🎭'),
         message: message.trim(),
-        category,
+        category: 'Umum',
         color: selectedColor,
       };
 
@@ -102,6 +107,33 @@ export default function Menfest({ onOpenAdminModal, onMenfestChange }) {
     // Optimistic UI update
     setMenfestList(prev => prev.map(m => m.id === id ? { ...m, likes: (m.likes || 0) + 1 } : m));
     await toggleLikeMenfest(id, currentLikes);
+  };
+
+  const handleReplySubmit = async (event, itemId) => {
+    event.preventDefault();
+    if (!replyText.trim()) return;
+
+    try {
+      setReplySubmitting(true);
+      const reply = await addMenfestReply(itemId, {
+        sender: replySender,
+        text: replyText,
+      });
+      setMenfestList(prev => {
+        const nextList = prev.map(item => item.id === itemId
+          ? { ...item, replies: [...(Array.isArray(item.replies) ? item.replies : []), reply] }
+          : item);
+        onMenfestChange?.(nextList);
+        return nextList;
+      });
+      setReplySender('');
+      setReplyText('');
+      setReplyingTo(null);
+    } catch (error) {
+      alert(`Gagal mengirim balasan: ${error.message}`);
+    } finally {
+      setReplySubmitting(false);
+    }
   };
 
   const handleCopy = (text) => {
@@ -135,20 +167,22 @@ export default function Menfest({ onOpenAdminModal, onMenfestChange }) {
                 Supabase Connected
               </span>
             ) : (
-              <button 
-                onClick={onOpenAdminModal}
-                className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5 hover:bg-amber-500/20 transition-colors"
-                title="Klik untuk konfigurasi Supabase di Super Admin"
+              <span
+                className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5"
+                title="Konfigurasi Supabase tersedia di Admin Portal"
               >
                 <span>⚡</span>
-                <span>Mode Lokal (Klik untuk konek Supabase)</span>
-              </button>
+                <span>Mode Lokal</span>
+              </span>
             )}
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight">💌 Menfest & Aspirasi Mahasiswa</h1>
           <p className={`text-sm mt-1 max-w-2xl ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
             Kirim pesan anonim, curahan hati, salam apresiasi, atau semangat untuk teman sekelas dan satu fakultas secara aman dan menyenangkan.
+          </p>
+          <p className={`text-xs mt-2 font-semibold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+            ⏳ Feed Menfest otomatis di-reset setiap 7 hari agar selalu segar & relevan.
           </p>
         </div>
 
@@ -227,24 +261,6 @@ export default function Menfest({ onOpenAdminModal, onMenfestChange }) {
                     }`}
                   />
                 )}
-              </div>
-
-              {/* Kategori */}
-              <div>
-                <label className="block mb-1 font-bold">Kategori:</label>
-                <select
-                  value={category}
-                  onChange={e => setCategory(e.target.value)}
-                  className={`w-full px-3 py-2 rounded-xl border outline-none ${
-                    isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-300'
-                  }`}
-                >
-                  <option value="Curhat">💭 Curhat</option>
-                  <option value="Apresiasi">💖 Apresiasi & Terima Kasih</option>
-                  <option value="Semangat">🔥 Ucapan Semangat</option>
-                  <option value="Info">📢 Info & Pengumuman</option>
-                  <option value="Lucu">😂 Lucu & Guyonan</option>
-                </select>
               </div>
 
               {/* Pilihan Warna Kartu */}
@@ -394,25 +410,85 @@ export default function Menfest({ onOpenAdminModal, onMenfestChange }) {
                       {item.message}
                     </p>
 
-                    {/* Bottom Actions: Like & Copy */}
-                    <div className={`flex items-center justify-between pt-3 border-t ${
+                    {/* Replies / thread */}
+                    {(() => {
+                      const replies = Array.isArray(item.replies) ? item.replies : [];
+                      const isExpanded = Boolean(expandedReplies[item.id]);
+                      const visibleReplies = isExpanded || replies.length <= 2 ? replies : replies.slice(-2);
+                      return (
+                        <div className="mt-4 space-y-2 border-l-2 border-white/10 pl-3 sm:pl-4">
+                          {visibleReplies.map(reply => (
+                            <div key={reply.id} className={`max-w-full rounded-2xl rounded-tl-sm px-3 py-2 ${isDark ? 'bg-black/20' : 'bg-white/60'}`}>
+                              <div className="flex min-w-0 items-center justify-between gap-2">
+                                <span className="truncate text-[11px] font-bold text-indigo-400">{reply.sender || 'Anonim 🎭'}</span>
+                                <time className="shrink-0 text-[10px] text-gray-500">{reply.created_at ? new Date(reply.created_at).toLocaleDateString('id-ID') : 'Baru'}</time>
+                              </div>
+                              <p className="mt-1 break-words text-xs leading-relaxed text-gray-300">{reply.text}</p>
+                            </div>
+                          ))}
+                          {replies.length > 2 && (
+                            <button
+                              type="button"
+                              onClick={() => setExpandedReplies(prev => ({ ...prev, [item.id]: !isExpanded }))}
+                              className="min-h-10 px-2 text-left text-xs font-bold text-indigo-400 hover:text-indigo-300"
+                            >
+                              {isExpanded ? 'Sembunyikan balasan ☝️' : `Lihat ${replies.length - 2} balasan lainnya 👇`}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {replyingTo === item.id && (
+                      <form onSubmit={(event) => handleReplySubmit(event, item.id)} className={`mt-3 space-y-2 rounded-2xl border p-3 ${isDark ? 'border-white/10 bg-black/10' : 'border-gray-200 bg-white/60'}`}>
+                        <input
+                          type="text"
+                          value={replySender}
+                          onChange={event => setReplySender(event.target.value)}
+                          placeholder="Nama pengirim (opsional / Anonim)"
+                          className={`w-full rounded-xl border px-3 py-2 text-xs outline-none ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-gray-50'}`}
+                        />
+                        <textarea
+                          required
+                          rows={2}
+                          maxLength={500}
+                          value={replyText}
+                          onChange={event => setReplyText(event.target.value)}
+                          placeholder="Tulis balasan..."
+                          className={`w-full resize-none rounded-xl border px-3 py-2 text-xs outline-none ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-gray-50'}`}
+                        />
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <button type="button" onClick={() => setReplyingTo(null)} className="min-h-10 rounded-xl px-3 text-xs font-semibold text-gray-400 hover:bg-black/10">Batal</button>
+                          <button type="submit" disabled={replySubmitting || !replyText.trim()} className="min-h-10 rounded-xl bg-indigo-600 px-4 text-xs font-bold text-white disabled:opacity-50">{replySubmitting ? 'Mengirim...' : 'Kirim Balasan'}</button>
+                        </div>
+                      </form>
+                    )}
+
+                    {/* Bottom Actions: Like, Reply & Copy */}
+                    <div className={`mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3 ${
                       isDark ? 'border-gray-800/80' : 'border-gray-100'
                     }`}>
-                      <button
-                        onClick={() => handleLike(item.id, item.likes)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold transition-all active:scale-90"
-                      >
-                        <span>❤️</span>
-                        <span>{item.likes || 0}</span>
-                      </button>
-
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => handleLike(item.id, item.likes)}
+                          className="flex min-h-10 items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-400 transition-all active:scale-90"
+                        >
+                          <span>❤️</span><span>{item.likes || 0}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReplyingTo(replyingTo === item.id ? null : item.id)}
+                          className="flex min-h-10 items-center gap-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-xs font-bold text-indigo-400"
+                        >
+                          💬 Balas {Array.isArray(item.replies) && item.replies.length > 0 ? `(${item.replies.length})` : ''}
+                        </button>
+                      </div>
                       <button
                         onClick={() => handleCopy(item.message)}
-                        className="text-xs text-gray-400 hover:text-gray-200 flex items-center gap-1"
+                        className="flex min-h-10 items-center gap-1 px-2 text-xs text-gray-400 hover:text-gray-200"
                         title="Salin isi pesan"
                       >
-                        <span>📋</span>
-                        <span className="hidden sm:inline">Salin</span>
+                        <span>📋</span><span className="hidden sm:inline">Salin</span>
                       </button>
                     </div>
 

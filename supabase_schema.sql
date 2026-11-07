@@ -15,20 +15,23 @@ CREATE TABLE IF NOT EXISTS public.menfest (
   likes INTEGER DEFAULT 0
 );
 
--- Aktifkan RLS dan izinkan publik membaca & menambah menfest
+-- Konten publik dapat dibaca dan dikirim tanpa akun; moderasi harus memakai
+-- sesi Supabase Auth aktif dari Portal Admin.
 ALTER TABLE public.menfest ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Izinkan siapa saja membaca menfest" 
+DROP POLICY IF EXISTS "Izinkan siapa saja membaca menfest" ON public.menfest;
+DROP POLICY IF EXISTS "Izinkan siapa saja mengirim menfest" ON public.menfest;
+DROP POLICY IF EXISTS "Izinkan siapa saja update likes menfest" ON public.menfest;
+DROP POLICY IF EXISTS "Izinkan siapa saja menghapus menfest (admin)" ON public.menfest;
+
+CREATE POLICY "Izinkan siapa saja membaca menfest"
 ON public.menfest FOR SELECT USING (true);
 
-CREATE POLICY "Izinkan siapa saja mengirim menfest" 
+CREATE POLICY "Izinkan siapa saja mengirim menfest"
 ON public.menfest FOR INSERT WITH CHECK (true);
 
-CREATE POLICY "Izinkan siapa saja update likes menfest" 
-ON public.menfest FOR UPDATE USING (true);
-
-CREATE POLICY "Izinkan siapa saja menghapus menfest (admin)" 
-ON public.menfest FOR DELETE USING (true);
+CREATE POLICY "Izinkan admin memoderasi menfest"
+ON public.menfest FOR DELETE TO authenticated USING (true);
 
 
 -- 2. Tabel Anggota (Input Mandiri Data Mahasiswa / Siswa)
@@ -38,6 +41,7 @@ CREATE TABLE IF NOT EXISTS public.anggota (
   name TEXT NOT NULL,
   nickname TEXT,
   prodi TEXT NOT NULL,
+  nim TEXT,
   birthday TEXT,
   quote TEXT,
   photo TEXT,
@@ -46,17 +50,22 @@ CREATE TABLE IF NOT EXISTS public.anggota (
 
 ALTER TABLE public.anggota ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Izinkan siapa saja membaca data anggota" 
+DROP POLICY IF EXISTS "Izinkan siapa saja membaca data anggota" ON public.anggota;
+DROP POLICY IF EXISTS "Izinkan siapa saja input data anggota mandiri" ON public.anggota;
+DROP POLICY IF EXISTS "Izinkan update data anggota" ON public.anggota;
+DROP POLICY IF EXISTS "Izinkan delete data anggota (admin)" ON public.anggota;
+
+CREATE POLICY "Izinkan siapa saja membaca data anggota"
 ON public.anggota FOR SELECT USING (true);
 
-CREATE POLICY "Izinkan siapa saja input data anggota mandiri" 
+CREATE POLICY "Izinkan siapa saja input data anggota mandiri"
 ON public.anggota FOR INSERT WITH CHECK (true);
 
-CREATE POLICY "Izinkan update data anggota" 
-ON public.anggota FOR UPDATE USING (true);
+CREATE POLICY "Izinkan admin memperbarui anggota"
+ON public.anggota FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 
-CREATE POLICY "Izinkan delete data anggota (admin)" 
-ON public.anggota FOR DELETE USING (true);
+CREATE POLICY "Izinkan admin menghapus anggota"
+ON public.anggota FOR DELETE TO authenticated USING (true);
 
 
 -- 3. Tabel Tugas
@@ -74,11 +83,14 @@ CREATE TABLE IF NOT EXISTS public.tugas (
 
 ALTER TABLE public.tugas ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Izinkan siapa saja membaca tugas" 
+DROP POLICY IF EXISTS "Izinkan siapa saja membaca tugas" ON public.tugas;
+DROP POLICY IF EXISTS "Izinkan siapa saja mengelola tugas" ON public.tugas;
+
+CREATE POLICY "Izinkan siapa saja membaca tugas"
 ON public.tugas FOR SELECT USING (true);
 
-CREATE POLICY "Izinkan siapa saja mengelola tugas" 
-ON public.tugas FOR ALL USING (true);
+CREATE POLICY "Izinkan admin mengelola tugas"
+ON public.tugas FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 
 -- 4. Tabel Jadwal Kuliah
@@ -95,9 +107,12 @@ CREATE TABLE IF NOT EXISTS public.jadwal (
 
 ALTER TABLE public.jadwal ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Izinkan siapa saja membaca jadwal" 
+DROP POLICY IF EXISTS "Izinkan siapa saja membaca jadwal" ON public.jadwal;
+DROP POLICY IF EXISTS "Izinkan siapa saja mengelola jadwal" ON public.jadwal;
+
+CREATE POLICY "Izinkan siapa saja membaca jadwal"
 ON public.jadwal FOR SELECT USING (true);
 
-CREATE POLICY "Izinkan siapa saja mengelola jadwal" 
-ON public.jadwal FOR ALL USING (true);
+CREATE POLICY "Izinkan admin mengelola jadwal"
+ON public.jadwal FOR ALL TO authenticated USING (true) WITH CHECK (true);
 

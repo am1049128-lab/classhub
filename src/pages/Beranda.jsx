@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { classInfo as defaultClassInfo, galeri as defaultGaleri, initialProdi } from '../data/dummy';
 import { useTheme } from '../context/ThemeContext';
 import { safeGet, safeSet } from '../utils/storage';
@@ -44,10 +44,30 @@ function CountdownCard({ tugas }) {
   return (
     <div className="rounded-2xl p-3 bg-white/5">
       <div className="flex items-start justify-between mb-2">
-        <div><span className="text-[10px] font-bold">{tugas.mapel}</span><p className="font-bold text-sm mt-1">{tugas.judul}</p></div>
-        <span className="text-xl">{isUrgent ? '🚨' : '📌'}</span>
+        <div><span className="text-[10px] font-bold">{tugas.mapel}</span><p className="font-bold text-sm mt-1">{tugas.judul}</p><span className="mt-1 inline-block rounded-full bg-indigo-500/15 px-2 py-0.5 text-[10px] text-indigo-300">{tugas.prodi || 'Semua Prodi'}</span></div>
+        <span className="text-right text-[11px] font-bold text-amber-400">{tugas.diffDays === 0 ? 'Hari ini!' : tugas.diffDays === 1 ? 'Besok!' : `${tugas.diffDays} hari lagi`} {isUrgent ? '🚨' : '📌'}</span>
       </div>
       {timeLeft.invalid ? <p className="text-rose-400 text-xs font-bold">Format tanggal tidak valid</p> : timeLeft.expired ? <p className="text-rose-400 text-xs font-bold">Deadline Terlewat</p> : <div className="flex gap-2 mt-2">{[['Hari', timeLeft.hari], ['Jam', timeLeft.jam], ['Menit', timeLeft.menit]].map(([label, val]) => <div key={label} className="flex-1 text-center rounded-xl py-1.5"><p className="text-base font-black">{val}</p><p className="text-[10px] text-gray-400 font-semibold">{label}</p></div>)}</div>}
+    </div>
+  );
+}
+
+function AnnouncementItem({ activity }) {
+  const isTask = activity.activityType === 'tugas';
+  const deadlineValue = String(activity.deadline || '');
+  const deadline = new Date(deadlineValue + (deadlineValue.includes('T') ? '' : 'T00:00:00'));
+  const activityText = isTask
+    ? `📝 Tugas Baru: ${activity.judul} (${activity.mapel}) — Deadline ${Number.isFinite(deadline.getTime()) ? deadline.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : 'tidak tersedia'}`
+    : `💌 Menfest Baru dari ${activity.sender || 'Anonim'} untuk ${activity.to_who || 'Semua Orang'}`;
+
+  return (
+    <div className={`p-4 rounded-2xl border-l-4 transition-all hover:translate-x-1 ${
+      isTask ? 'border-indigo-500 bg-indigo-500/5' : 'border-pink-500 bg-pink-500/5'
+    }`}>
+      <h3 className="font-bold text-sm leading-snug">{activityText}</h3>
+      <p className="text-[10px] text-gray-500 mt-2 font-medium">
+        🗓️ {new Date(activity.activityTimestamp).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+      </p>
     </div>
   );
 }
@@ -108,7 +128,21 @@ export default function Beranda({
 }) {
   const { isDark } = useTheme();
   const [galeri, setGaleri] = useState(defaultGaleri);
-  const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+  const [showPengumumanModal, setShowPengumumanModal] = useState(false);
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const sevenDaysAgoTime = sevenDaysAgo.getTime();
+  // State dari App selalu menjadi sumber tunggal agar pembaruan async langsung dirender.
+  const sourceTugas = Array.isArray(tugasList) ? tugasList : [];
+
+  useEffect(() => {
+    if (!showPengumumanModal) return undefined;
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') setShowPengumumanModal(false);
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [showPengumumanModal]);
 
   useEffect(() => {
     const loadGaleri = () => {
@@ -131,27 +165,40 @@ export default function Beranda({
   }, []);
 
   const liveActivities = [
-    ...tugasList
+    ...sourceTugas
       .map(tugas => ({
         ...tugas,
         activityType: 'tugas',
         activityTimestamp: new Date(tugas.created_at || tugas.createdAt).getTime(),
       }))
-      .filter(tugas => Number.isFinite(tugas.activityTimestamp) && tugas.activityTimestamp >= sevenDaysAgo),
+      .filter(tugas => Number.isFinite(tugas.activityTimestamp) && tugas.activityTimestamp >= sevenDaysAgoTime),
     ...menfestList
       .map(menfest => ({
         ...menfest,
         activityType: 'menfest',
         activityTimestamp: new Date(menfest.created_at).getTime(),
       }))
-      .filter(menfest => Number.isFinite(menfest.activityTimestamp) && menfest.activityTimestamp >= sevenDaysAgo),
+      .filter(menfest => Number.isFinite(menfest.activityTimestamp) && menfest.activityTimestamp >= sevenDaysAgoTime),
   ].sort((a, b) => b.activityTimestamp - a.activityTimestamp);
 
-  const activeTugas = tugasList.filter(t => t.status !== 'Selesai');
-  const nearestTugas = [...activeTugas]
-    .filter(t => t.status !== 'Selesai')
-    .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
-    .slice(0, 2);
+  const activeTugas = sourceTugas.filter(t => t.status !== 'Selesai' && t.status !== 'selesai');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const urgentTasks = activeTugas
+    .map(t => {
+      const value = String(t.deadline || '');
+      const deadline = new Date(value + (value.includes('T') ? '' : 'T23:59:59'));
+      const deadlineTime = deadline.getTime();
+      if (!Number.isFinite(deadlineTime)) return null;
+      const deadlineDateOnly = new Date(deadline);
+      deadlineDateOnly.setHours(0, 0, 0, 0);
+      const diffDays = Math.round((deadlineDateOnly.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return { ...t, deadlineTime, diffDays };
+    })
+    .filter(t => t && t.diffDays >= 0 && t.diffDays <= 2)
+    .sort((a, b) => a.deadlineTime - b.deadlineTime);
+  const displayedUrgentTasks = urgentTasks.slice(0, 3);
+  const remainingCount = urgentTasks.length - 3;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl mx-auto">
@@ -232,7 +279,7 @@ export default function Beranda({
           { 
             icon: '📝', 
             label: 'Tugas Belum Selesai', 
-            value: tugasList.filter(t => t.status !== 'Selesai').length,
+            value: sourceTugas.filter(t => t.status !== 'Selesai' && t.status !== 'selesai').length,
             action: () => setActivePage('tugas')
           },
           { 
@@ -288,28 +335,18 @@ export default function Beranda({
             </div>
           ) : (
             <div className="space-y-3.5">
-              {liveActivities.map(activity => {
-                const isTask = activity.activityType === 'tugas';
-                const activityText = isTask
-                  ? `📝 Tugas Baru: ${activity.judul} (${activity.mapel}) — Deadline ${new Date(`${activity.deadline}T00:00:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`
-                  : `💌 Menfest Baru dari ${activity.sender || 'Anonim'} untuk ${activity.to_who || 'Semua Orang'}`;
-
-                return (
-                  <div
-                    key={`${activity.activityType}-${activity.id}`}
-                    className={`p-4 rounded-2xl border-l-4 transition-all hover:translate-x-1 ${
-                      isTask
-                        ? 'border-indigo-500 bg-indigo-500/5'
-                        : 'border-pink-500 bg-pink-500/5'
-                    }`}
-                  >
-                    <h3 className="font-bold text-sm leading-snug">{activityText}</h3>
-                    <p className="text-[10px] text-gray-500 mt-2 font-medium">
-                      🗓️ {new Date(activity.activityTimestamp).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                    </p>
-                  </div>
-                );
-              })}
+              {liveActivities.slice(0, 8).map(activity => (
+                <AnnouncementItem key={`${activity.activityType}-${activity.id}`} activity={activity} />
+              ))}
+              {liveActivities.length > 8 && (
+                <button
+                  type="button"
+                  onClick={() => setShowPengumumanModal(true)}
+                  className="w-full rounded-xl border border-indigo-400/20 bg-indigo-500/5 px-4 py-2.5 text-sm font-bold text-indigo-400 transition hover:border-indigo-400/40 hover:bg-indigo-500/10"
+                >
+                  Lihat Selengkapnya ({liveActivities.length} Pengumuman) →
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -335,11 +372,20 @@ export default function Beranda({
 
             {tugasLoading ? (
               <p className="text-xs text-gray-400 py-4 text-center">Memuat deadline tugas...</p>
-            ) : nearestTugas.length === 0 ? (
+            ) : urgentTasks.length === 0 ? (
               <p className="text-xs text-gray-400 py-4 text-center">Tidak ada deadline mendesak saat ini! 🎉</p>
             ) : (
               <div className="space-y-3">
-                {nearestTugas.map(t => <CountdownCard key={t.id} tugas={t} />)}
+                {displayedUrgentTasks.map(t => <CountdownCard key={t.id} tugas={t} />)}
+                {urgentTasks.length > 3 && (
+                  <button
+                    onClick={() => setActivePage('tugas')}
+                    className="w-full mt-3 py-2.5 px-4 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 font-medium text-sm flex items-center justify-center gap-2 transition-all duration-200 group"
+                  >
+                    <span>Lihat {remainingCount} tugas mendesak lainnya</span>
+                    <span className="group-hover:translate-x-1 transition-transform">→</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -401,6 +447,52 @@ export default function Beranda({
         </div>
       </div>
 
+      {showPengumumanModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pengumuman-modal-title"
+          onClick={() => setShowPengumumanModal(false)}
+        >
+          <div
+            className={`w-full max-w-3xl rounded-3xl border p-5 shadow-2xl sm:p-6 ${
+              isDark ? 'border-gray-700 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-900'
+            }`}
+            onClick={event => event.stopPropagation()}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 id="pengumuman-modal-title" className="text-lg font-black">📢 Semua Pengumuman Fakultas</h2>
+                <p className="mt-1 text-xs text-gray-400">Menampilkan pengumuman 7 hari terakhir</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Tutup modal pengumuman"
+                onClick={() => setShowPengumumanModal(false)}
+                className="rounded-lg px-3 py-1.5 text-lg text-gray-400 transition hover:bg-white/10 hover:text-white"
+              >
+                ×
+              </button>
+            </div>
+            <div className="max-h-[65vh] space-y-3 overflow-y-auto pr-2">
+              {liveActivities.map(activity => (
+                <AnnouncementItem key={`${activity.activityType}-${activity.id}`} activity={activity} />
+              ))}
+            </div>
+            <div className="mt-5 flex justify-end border-t border-white/10 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowPengumumanModal(false)}
+                className="rounded-xl border border-indigo-500/30 bg-indigo-600/20 px-4 py-2 text-sm font-bold text-indigo-300 transition hover:bg-indigo-600/30"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

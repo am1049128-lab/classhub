@@ -32,9 +32,7 @@ export function getSupabaseClient() {
 
   if (!supabaseInstance || lastUrl !== url || lastKey !== key) {
     try {
-      supabaseInstance = createClient(url, key, {
-        auth: { persistSession: false },
-      });
+      supabaseInstance = createClient(url, key);
       lastUrl = url;
       lastKey = key;
     } catch (err) {
@@ -44,6 +42,60 @@ export function getSupabaseClient() {
   }
 
   return supabaseInstance;
+}
+
+function unavailableAuthError() {
+  return { message: 'Supabase belum dikonfigurasi atau tidak dapat dihubungi.' };
+}
+
+// Autentikasi admin selalu dikembalikan sebagai hasil Supabase agar kegagalan
+// konfigurasi maupun jaringan dapat ditampilkan oleh UI tanpa exception tak tertangani.
+export async function signInAdmin(email, password) {
+  const client = getSupabaseClient();
+  if (!client) return { data: null, error: unavailableAuthError() };
+
+  try {
+    return await client.auth.signInWithPassword({ email, password });
+  } catch (error) {
+    console.warn('Gagal masuk ke Supabase Auth:', error);
+    return { data: null, error: error instanceof Error ? error : unavailableAuthError() };
+  }
+}
+
+export async function signOutAdmin() {
+  const client = getSupabaseClient();
+  if (!client) return { error: unavailableAuthError() };
+
+  try {
+    return await client.auth.signOut();
+  } catch (error) {
+    console.warn('Gagal keluar dari Supabase Auth:', error);
+    return { error: error instanceof Error ? error : unavailableAuthError() };
+  }
+}
+
+export async function getAdminSession() {
+  const client = getSupabaseClient();
+  if (!client) return { data: { session: null }, error: unavailableAuthError() };
+
+  try {
+    return await client.auth.getSession();
+  } catch (error) {
+    console.warn('Gagal mengambil sesi Supabase Auth:', error);
+    return { data: { session: null }, error: error instanceof Error ? error : unavailableAuthError() };
+  }
+}
+
+export function onAuthStateChange(callback) {
+  const client = getSupabaseClient();
+  if (!client) return { data: { subscription: null }, error: unavailableAuthError() };
+
+  try {
+    return client.auth.onAuthStateChange(callback);
+  } catch (error) {
+    console.warn('Gagal memasang listener Supabase Auth:', error);
+    return { data: { subscription: null }, error: error instanceof Error ? error : unavailableAuthError() };
+  }
 }
 
 // Uji koneksi Supabase
@@ -233,7 +285,8 @@ export async function deleteMenfestItem(id) {
 
   const saved = safeGet(MENFEST_STORAGE_KEY, []);
   const current = Array.isArray(saved) ? saved : [];
-  safeSet(MENFEST_STORAGE_KEY, current.filter(m => m.id !== id));
+  safeSet(MENFEST_STORAGE_KEY, current.filter(m => String(m.id) !== String(id)));
+  window.dispatchEvent(new Event('classhub:menfest-updated'));
   return true;
 }
 
@@ -252,8 +305,12 @@ export async function getAnggotaList() {
         .order('name', { ascending: true });
 
       if (!error && Array.isArray(data) && data.length > 0) {
-  safeSet(ANGGOTA_STORAGE_KEY, data);
-        return { data, isSupabase: true };
+        const normalized = data.map(item => ({
+          ...item,
+          nim: item.nim || '-'
+        }));
+        safeSet(ANGGOTA_STORAGE_KEY, normalized);
+        return { data: normalized, isSupabase: true };
       }
     } catch (e) {
       console.warn('Supabase fetch anggota exception:', e);
@@ -262,9 +319,16 @@ export async function getAnggotaList() {
 
   const saved = safeGet(ANGGOTA_STORAGE_KEY, []);
   if (Array.isArray(saved) && saved.length > 0) {
-    return { data: saved.map(normalizeSiswa), isSupabase: false };
+    const normalized = saved.map(item => ({
+      ...item,
+      nim: item.nim || '-'
+    }));
+    return { data: normalized, isSupabase: false };
   }
-  const seeded = Array.isArray(initialSiswa) ? initialSiswa : [];
+  const seeded = Array.isArray(initialSiswa) ? initialSiswa.map(item => ({
+    ...item,
+    nim: item.nim || '-'
+  })) : [];
   safeSet(ANGGOTA_STORAGE_KEY, seeded);
   return { data: seeded, isSupabase: false };
 }
@@ -277,6 +341,7 @@ export async function saveAnggota(item) {
     name: item.name,
     nickname: item.nickname || item.name.split(' ')[0],
     prodi: item.prodi || 'Ilmu Komputer',
+    nim: item.nim || '-',
     birthday: item.birthday || '2005-01-01',
     quote: item.quote || 'Semangat menuntut ilmu!',
     photo: item.photo || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(item.name)}`,
@@ -424,6 +489,45 @@ export async function addJadwal(item) {
   safeSet(JADWAL_STORAGE_KEY, updated);
 
   return record;
+}
+
+/**
+ * Menambah beberapa jadwal sekaligus dan menyelaraskannya dengan cache lokal.
+ */
+export async function addJadwalBatch(items) {
+  const payloads = items.map((item) => ({
+    hari: item.hari,
+    prodi: item.prodi || 'Semua',
+    jam: item.jam,
+    mapel: item.mapel,
+    guru: item.guru || null,
+    ruangan: item.ruangan || null,
+    created_at: new Date().toISOString(),
+  }));
+  const client = getSupabaseClient();
+  let inserted = null;
+
+  if (client) {
+    try {
+      const { data, error } = await client.from('jadwal').insert(payloads).select();
+      if (!error && Array.isArray(data)) {
+        inserted = data;
+      } else {
+        console.warn('Insert batch jadwal Supabase gagal, simpan lokal:', error?.message);
+      }
+    } catch (err) {
+      console.warn('Insert batch jadwal Supabase exception:', err);
+    }
+  }
+
+  const saved = safeGet(JADWAL_STORAGE_KEY, []);
+  const current = Array.isArray(saved) ? saved : [];
+  const records = inserted || payloads.map((payload, index) => ({
+    ...payload,
+    id: Date.now() + index,
+  }));
+  safeSet(JADWAL_STORAGE_KEY, [...records, ...current]);
+  return records;
 }
 
 /**

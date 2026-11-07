@@ -96,6 +96,12 @@ export default function Anggota({
       (item.quote && item.quote.toLowerCase().includes(query))
     );
   });
+  const formatTanggalIndo = value => {
+    const date = new Date(`${value}T00:00:00`);
+    return Number.isFinite(date.getTime())
+      ? date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+      : value;
+  };
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 p-4 sm:p-6 lg:p-8">
@@ -122,7 +128,7 @@ export default function Anggota({
 
       <div>
         <h2 className="mb-4 flex items-center gap-2 text-lg font-bold">📸 Foto & Profil Anggota: <span className="text-indigo-400">{activeProdi}</span><span className="rounded-full bg-indigo-500/10 px-2 py-0.5 text-xs font-semibold text-indigo-400">{filtered.length} mahasiswa</span></h2>
-        {filtered.length === 0 ? <div className={`rounded-3xl border p-12 text-center ${isDark ? 'border-gray-800 bg-gray-900 text-gray-400' : 'border-gray-200 bg-white text-gray-500'}`}><span className="mb-3 block text-5xl">🔍</span><p className="font-bold">Tidak ada mahasiswa ditemukan di prodi ini</p></div> : <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">{filtered.map(member => <div key={member.id} onClick={() => setSelectedAnggota(member)} className={`group relative flex cursor-pointer flex-col items-center justify-between overflow-hidden rounded-3xl border p-4 text-center transition-all hover:-translate-y-1.5 ${isDark ? 'border-gray-800 bg-gray-900/90 hover:border-indigo-500/50' : 'border-gray-200 bg-white hover:border-indigo-300'}`}><div className="mb-3 h-20 w-20 overflow-hidden rounded-2xl border-2 border-indigo-500/40"><img src={member.photo} alt={member.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110" /></div><div className="mb-2 w-full"><h3 className="line-clamp-1 text-xs font-bold sm:text-sm">{member.name}</h3><p className="mt-0.5 text-[11px] font-medium text-indigo-400">"{member.nickname || member.name.split(' ')[0]}"</p></div><div className={`mt-auto line-clamp-2 w-full rounded-xl p-2 text-[11px] italic ${isDark ? 'bg-gray-800/80 text-gray-300' : 'bg-gray-50 text-gray-600'}`}>&quot;{member.quote}&quot;</div></div>)}</div>}
+        {filtered.length === 0 ? <div className={`rounded-3xl border p-12 text-center ${isDark ? 'border-gray-800 bg-gray-900 text-gray-400' : 'border-gray-200 bg-white text-gray-500'}`}><span className="mb-3 block text-5xl">🔍</span><p className="font-bold">Tidak ada mahasiswa ditemukan di prodi ini</p></div> : <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">{filtered.map(member => <div key={member.id} onClick={() => setSelectedAnggota(member)} className={`group relative flex cursor-pointer flex-col items-center justify-between overflow-hidden rounded-3xl border p-4 text-center transition-all hover:-translate-y-1.5 ${isDark ? 'border-gray-800 bg-gray-900/90 hover:border-indigo-500/50' : 'border-gray-200 bg-white hover:border-indigo-300'}`}><div className="mb-3 h-20 w-20 overflow-hidden rounded-2xl border-2 border-indigo-500/40"><img src={member.photo} alt={member.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110" /></div><div className="mb-2 w-full"><h3 className="line-clamp-1 text-xs font-bold sm:text-sm">{member.name}</h3><p className="mt-0.5 text-[11px] font-medium text-indigo-400">"{member.nickname || member.name.split(' ')[0]}"</p>{member.nim && member.nim !== '-' && <p className="mt-1 text-[10px] text-gray-500">NIM: {member.nim}</p>}</div><div className={`mt-auto line-clamp-2 w-full rounded-xl p-2 text-[11px] italic ${isDark ? 'bg-gray-800/80 text-gray-300' : 'bg-gray-50 text-gray-600'}`}>&quot;{member.quote}&quot;</div></div>)}</div>}
       </div>
 
       <section className="rounded-3xl border border-slate-800 bg-slate-950 p-5 shadow-xl sm:p-8">
@@ -130,7 +136,32 @@ export default function Anggota({
         <StructureTree struktur={struktur} isDark={isDark} />
       </section>
 
-      {selectedAnggota && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4" onClick={() => setSelectedAnggota(null)}><div className="relative w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-8 text-center text-white shadow-2xl" onClick={event => event.stopPropagation()}><button onClick={() => setSelectedAnggota(null)} className="absolute right-4 top-4 text-xl text-gray-400">✕</button><img src={selectedAnggota.photo} alt={selectedAnggota.name} className="mx-auto h-32 w-32 rounded-2xl object-cover" /><h3 className="mt-4 text-xl font-bold">{selectedAnggota.name}</h3><p className="mt-1 text-slate-400">{selectedAnggota.nickname ? `&quot;${selectedAnggota.nickname}&quot;` : '—'}</p><span className="mt-3 inline-flex rounded-full border border-indigo-500/20 bg-indigo-500/10 px-3 py-1 text-xs text-indigo-400">🎓 {selectedAnggota.prodi}</span><p className="mt-4 rounded-xl border border-slate-700 bg-gray-800 p-3 text-sm italic">&quot;{selectedAnggota.quote}&quot;</p></div></div>}
+      {selectedAnggota && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm" onClick={() => setSelectedAnggota(null)}>
+          <div className="relative w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-8 text-center text-white shadow-2xl" onClick={event => event.stopPropagation()}>
+            <button onClick={() => setSelectedAnggota(null)} aria-label="Tutup detail anggota" className="absolute right-4 top-4 text-xl text-gray-400 transition hover:text-white">✕</button>
+            <img src={selectedAnggota.photo} alt={selectedAnggota.name} className="mx-auto h-32 w-32 rounded-2xl object-cover" />
+            <h3 className="mt-4 text-xl font-bold">{selectedAnggota.name}</h3>
+            <p className="mt-1 text-slate-400">{selectedAnggota.nickname ? `"${selectedAnggota.nickname.replace(/&quot;/g, '').trim()}"` : selectedAnggota.name}</p>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+              {selectedAnggota.prodi && <span className="inline-flex rounded-full border border-indigo-500/20 bg-indigo-500/10 px-3 py-1 text-xs text-indigo-400">🎓 {selectedAnggota.prodi}</span>}
+              {selectedAnggota.nim && selectedAnggota.nim !== '-' && <span className="inline-flex rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-400">🎫 NIM: {selectedAnggota.nim}</span>}
+              {selectedAnggota.birthday && <span className="inline-flex rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs text-amber-300">🎂 {formatTanggalIndo(selectedAnggota.birthday)}</span>}
+              {selectedAnggota.instagram && (
+                <a
+                  href={`https://instagram.com/${selectedAnggota.instagram.replace(/^@/, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-full border border-pink-500/30 bg-pink-500/10 px-3 py-1 text-xs font-semibold text-pink-300 transition hover:bg-pink-500/20"
+                >
+                  ◎ @{selectedAnggota.instagram.replace(/^@/, '')}
+                </a>
+              )}
+            </div>
+            {selectedAnggota.quote && <p className="mt-5 rounded-xl border border-slate-700 bg-gray-800 p-3 text-sm italic">&quot;{selectedAnggota.quote}&quot;</p>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

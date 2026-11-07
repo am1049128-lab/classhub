@@ -1,15 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { initialProdi } from '../data/dummy';
 import { useTheme } from '../context/ThemeContext';
-import { getTugasList, addTugas, updateTugasStatus, deleteTugasItem } from '../lib/supabase';
+import { getTugasList } from '../lib/supabase';
 
-const STATUS_COLORS = {
-  'Belum': 'bg-rose-500/20 text-rose-400 border-rose-500/40',
-  'Proses': 'bg-amber-500/20 text-amber-400 border-amber-500/40',
-  'Selesai': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
-};
-
-const STATUS_CYCLE = { 'Belum': 'Proses', 'Proses': 'Selesai', 'Selesai': 'Belum' };
 
 const isValidDeadline = value => {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -17,7 +10,7 @@ const isValidDeadline = value => {
   return Number.isFinite(date.getTime()) && date.toISOString().startsWith(value);
 };
 
-export default function Tugas({ prodiList = initialProdi, onTugasChange }) {
+export default function Tugas({ prodiList = initialProdi }) {
   const { isDark } = useTheme();
 
   const [tugasList, setTugasList] = useState([]);
@@ -25,16 +18,6 @@ export default function Tugas({ prodiList = initialProdi, onTugasChange }) {
   const [isCloud, setIsCloud] = useState(false);
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [filterProdi, setFilterProdi] = useState('Semua');
-  const [showTambah, setShowTambah] = useState(false);
-
-  const [formTugas, setFormTugas] = useState({
-    mapel: '',
-    judul: '',
-    deskripsi: '',
-    deadline: '',
-    prodi: 'Semua',
-    guru: '',
-  });
 
   // Fetch tugas dari Supabase / localStorage
   const fetchTugas = useCallback(async () => {
@@ -42,93 +25,18 @@ export default function Tugas({ prodiList = initialProdi, onTugasChange }) {
     try {
       const { data, isSupabase } = await getTugasList();
       setTugasList(data);
-      onTugasChange?.(data);
       setIsCloud(isSupabase);
     } catch (err) {
       console.warn('Gagal fetch tugas:', err);
     } finally {
       setLoading(false);
     }
-  }, [onTugasChange]);
+  }, []);
 
   useEffect(() => {
     fetchTugas();
   }, [fetchTugas]);
 
-  const toggleStatus = async (id) => {
-    const task = tugasList.find(t => t.id === id);
-    if (!task) return;
-    const newStatus = STATUS_CYCLE[task.status] || 'Belum';
-
-    // Optimistic update
-    setTugasList(prev => {
-      const next = prev.map(t => t.id === id ? { ...t, status: newStatus } : t);
-      onTugasChange?.(next);
-      return next;
-    });
-
-    try {
-      await updateTugasStatus(id, newStatus);
-    } catch (err) {
-      console.warn('Gagal update status:', err);
-      // Rollback on error
-      setTugasList(prev => {
-        const next = prev.map(t => t.id === id ? { ...t, status: task.status } : t);
-        onTugasChange?.(next);
-        return next;
-      });
-    }
-  };
-
-  const handleTambahTugas = async (e) => {
-    e.preventDefault();
-    const mapel = formTugas.mapel.trim();
-    const judul = formTugas.judul.trim();
-    const deskripsi = formTugas.deskripsi.trim();
-    if (!mapel || !judul || !deskripsi || !isValidDeadline(formTugas.deadline)) return;
-
-    try {
-      const record = await addTugas({
-        ...formTugas,
-        mapel,
-        judul,
-        deskripsi,
-        status: 'Belum',
-      });
-      setTugasList(prev => {
-        const next = [record, ...prev];
-        onTugasChange?.(next);
-        return next;
-      });
-    } catch (err) {
-      console.warn('Gagal tambah tugas:', err);
-    }
-
-    setFormTugas({
-      mapel: '', judul: '', deskripsi: '', deadline: '', prodi: 'Semua', guru: '',
-    });
-    setShowTambah(false);
-  };
-
-  const handleHapusTugas = async (id) => {
-    if (window.confirm('Yakin ingin menghapus tugas ini?')) {
-      // Optimistic update
-      const backup = tugasList;
-      setTugasList(prev => {
-        const next = prev.filter(t => t.id !== id);
-        onTugasChange?.(next);
-        return next;
-      });
-
-      try {
-        await deleteTugasItem(id);
-      } catch (err) {
-        console.warn('Gagal hapus tugas:', err);
-        setTugasList(backup);
-        onTugasChange?.(backup); // Rollback
-      }
-    }
-  };
 
   const filteredTugas = tugasList.filter(t => {
     const matchStatus = filterStatus === 'Semua' || t.status === filterStatus;
@@ -158,18 +66,10 @@ export default function Tugas({ prodiList = initialProdi, onTugasChange }) {
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight">📝 Daftar Tugas Kuliah</h1>
           <p className={`text-sm mt-1 max-w-2xl ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-            Kelola tugas perkuliahan, praktikum, dan deadline tugas per program studi. Klik status tugas untuk mengubahnya menjadi Proses atau Selesai.
+            Kelola tugas perkuliahan, praktikum, dan deadline tugas per program studi. Halaman ini bersifat read-only untuk pengguna publik.
           </p>
         </div>
-
-        <button
-          onClick={() => setShowTambah(true)}
-          className="flex items-center gap-2 px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:opacity-95 shadow-lg shadow-indigo-500/25 active:scale-95 transition-all shrink-0"
-        >
-          <span>➕</span>
-          <span>Tambah Tugas Baru</span>
-        </button>
-      </div>
+        </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
@@ -291,17 +191,6 @@ export default function Tugas({ prodiList = initialProdi, onTugasChange }) {
                     <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 truncate max-w-[150px]">
                       {t.prodi || 'Semua Prodi'}
                     </span>
-                    <button
-                      onClick={() => toggleStatus(t.id)}
-                      className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border transition-all active:scale-95 ${
-                        STATUS_COLORS[t.status] || STATUS_COLORS['Belum']
-                      }`}
-                      title="Klik untuk ubah status tugas"
-                    >
-                      {t.status === 'Belum' && '🔴 Belum'}
-                      {t.status === 'Proses' && '🟡 Proses'}
-                      {t.status === 'Selesai' && '🟢 Selesai'}
-                    </button>
                   </div>
 
                   <p className="text-xs font-semibold text-indigo-400 mb-1">{t.mapel}</p>
@@ -315,7 +204,7 @@ export default function Tugas({ prodiList = initialProdi, onTugasChange }) {
                   )}
                 </div>
 
-                {/* Bottom: Deadline & Action */}
+                {/* Deadline */}
                 <div className={`mt-5 pt-3 border-t flex items-center justify-between text-xs ${
                   isDark ? 'border-gray-800' : 'border-gray-100'
                 }`}>
@@ -329,143 +218,14 @@ export default function Tugas({ prodiList = initialProdi, onTugasChange }) {
                     </span>
                   </div>
 
-                  <button
-                    onClick={() => handleHapusTugas(t.id)}
-                    className="text-gray-400 hover:text-rose-400 text-xs transition-colors p-1"
-                    title="Hapus tugas"
-                  >
-                    🗑️
-                  </button>
-                </div>
 
+                </div>
               </div>
             );
           })}
         </div>
       )}
 
-      {/* MODAL TAMBAH TUGAS */}
-      {showTambah && (
-        <div
-          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto"
-          onClick={() => setShowTambah(false)}
-        >
-          <div
-            className={`w-[92%] sm:w-full max-w-lg max-h-[90vh] overflow-y-auto pb-8 rounded-3xl p-5 sm:p-6 border shadow-2xl relative ${
-              isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'
-            }`}
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setShowTambah(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white"
-            >
-              ✕
-            </button>
-            <h3 className="font-black text-lg mb-4">➕ Tambah Tugas Kuliah</h3>
-
-            <form onSubmit={handleTambahTugas} className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block mb-1 font-semibold">Prodi Target</label>
-                  <select
-                    value={formTugas.prodi}
-                    onChange={e => setFormTugas({ ...formTugas, prodi: e.target.value })}
-                    className={`w-full px-3 py-2 rounded-xl border outline-none ${
-                      isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-300'
-                    }`}
-                  >
-                    <option value="Semua">Semua Prodi</option>
-                    {prodiList.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block mb-1 font-semibold">Tenggat (Deadline) *</label>
-                  <input
-                    type="date"
-                    required
-                    value={formTugas.deadline}
-                    onChange={e => setFormTugas({ ...formTugas, deadline: e.target.value })}
-                    className={`w-full px-3 py-2 rounded-xl border outline-none ${
-                      isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-300'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block mb-1 font-semibold">Mata Kuliah *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Algoritma & Struktur Data"
-                  value={formTugas.mapel}
-                  onChange={e => setFormTugas({ ...formTugas, mapel: e.target.value })}
-                  className={`w-full px-3 py-2 rounded-xl border outline-none ${
-                    isDark ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-300'
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className="block mb-1 font-semibold">Judul Tugas *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Tugas Praktikum Linked List"
-                  value={formTugas.judul}
-                  onChange={e => setFormTugas({ ...formTugas, judul: e.target.value })}
-                  className={`w-full px-3 py-2 rounded-xl border outline-none ${
-                    isDark ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-300'
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className="block mb-1 font-semibold">Deskripsi / Petunjuk Pengerjaan</label>
-                <textarea
-                  rows={3}
-                  placeholder="Jelaskan format pengumpulan, link repository, atau instruksi soal..."
-                  value={formTugas.deskripsi}
-                  onChange={e => setFormTugas({ ...formTugas, deskripsi: e.target.value })}
-                  className={`w-full px-3 py-2 rounded-xl border outline-none resize-none ${
-                    isDark ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-300'
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className="block mb-1 font-semibold">Dosen Pengampu</label>
-                <input
-                  type="text"
-                  placeholder="Dr. Agus Supriadi, M.Kom"
-                  value={formTugas.guru}
-                  onChange={e => setFormTugas({ ...formTugas, guru: e.target.value })}
-                  className={`w-full px-3 py-2 rounded-xl border outline-none ${
-                    isDark ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-300'
-                  }`}
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowTambah(false)}
-                  className="px-4 py-2 rounded-xl text-gray-400"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700"
-                >
-                  Simpan Tugas
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
     </div>
   );

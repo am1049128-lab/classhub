@@ -168,6 +168,7 @@ function AppContent() {
     beranda: (
       <Beranda
         setActivePage={setActivePage}
+        selectedProdi={selectedProdi}
         setSelectedProdi={setSelectedProdi}
         anggotaList={anggotaList}
         prodiList={prodiList}
@@ -175,6 +176,7 @@ function AppContent() {
         tugasList={tugasList}
         tugasLoading={tugasLoading}
         menfestList={menfestList}
+        jadwalList={jadwalList}
       />
     ),
     prodi: (

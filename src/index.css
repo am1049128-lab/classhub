@@ -105,5 +105,77 @@
     background-size: 200% 100%;
     animation: shimmer 2s infinite;
   }
+
+  /* ===== Kartu Ulang Tahun: sparkle melayang & konfeti letupan ===== */
+  .birthday-card {
+    position: relative;
+    isolation: isolate;
+  }
+  .birthday-spark {
+    position: absolute;
+    border-radius: 9999px;
+    pointer-events: none;
+    opacity: 0;
+    animation: birthdayFloat 4.5s ease-in-out infinite;
+    will-change: transform, opacity;
+  }
+  .birthday-confetti {
+    position: absolute;
+    top: 0;
+    width: 8px;
+    height: 12px;
+    border-radius: 2px;
+    pointer-events: none;
+    opacity: 0;
+    animation: confettiBurst 1.9s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+    will-change: transform, opacity;
+  }
+  /* Layer glow terpisah: menganimasikan opacity, BUKAN box-shadow, agar
+     ring emas & shadow kartu dari Tailwind tidak tertimpa. */
+  .birthday-glow-layer {
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: -1;
+    background: radial-gradient(circle at 50% 50%, rgba(251, 191, 36, 0.35), transparent 70%);
+    filter: blur(10px);
+    animation: birthdayGlowPulse 2.8s ease-in-out infinite;
+    will-change: opacity;
+  }
+
+  @keyframes birthdayFloat {
+    0%   { opacity: 0; transform: translate3d(0, 8px, 0) scale(0.6); }
+    25%  { opacity: 0.95; }
+    50%  { opacity: 0.7; transform: translate3d(3px, -10px, 0) scale(1); }
+    75%  { opacity: 0.5; }
+    100% { opacity: 0; transform: translate3d(-3px, -22px, 0) scale(0.7); }
+  }
+  @keyframes confettiBurst {
+    0% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+    }
+    70% { opacity: 0.9; }
+    100% {
+      opacity: 0;
+      transform: translate3d(var(--confetti-x, 0px), var(--confetti-y, 140px), 0)
+        rotate(var(--confetti-rotate, 320deg)) scale(0.7);
+    }
+  }
+  @keyframes birthdayGlowPulse {
+    0%, 100% { opacity: 0.45; }
+    50%      { opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .birthday-spark,
+    .birthday-confetti,
+    .birthday-glow-layer {
+      animation: none;
+    }
+    .birthday-spark { opacity: 0.6; }
+    .birthday-glow-layer { opacity: 0.7; }
+  }
 }
 

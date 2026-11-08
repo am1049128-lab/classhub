@@ -2,6 +2,14 @@
 import { classInfo as defaultClassInfo, galeri as defaultGaleri, initialProdi } from '../data/dummy';
 import { useTheme } from '../context/ThemeContext';
 import { safeGet, safeSet } from '../utils/storage';
+import {
+  getWIBTodayParts,
+  getWIBTodayKey,
+  parseBirthdayMonthDay,
+  isBirthdayToday,
+  formatBirthdayIndo,
+} from '../utils/birthday';
+import JadwalHariIniLive from '../components/JadwalHariIniLive';
 
 function AnimatedCounter({ value, duration = 1350 }) {
   const [displayValue, setDisplayValue] = useState(0);
@@ -72,42 +80,146 @@ function AnnouncementItem({ activity }) {
   );
 }
 
+const MENFEST_COLOR_HEX = {
+  violet: '#8B5CF6',
+  'electric-blue': '#3B82F6',
+  cyan: '#06B6D4',
+  emerald: '#10B981',
+  lime: '#84CC16',
+  amber: '#F59E0B',
+  orange: '#F97316',
+  rose: '#F43F5E',
+  magenta: '#EC4899',
+  lavender: '#6366F1',
+  purple: '#A855F7',
+  blue: '#3B82F6',
+};
+
+function getTopMenfest(menfestList, sinceTime) {
+  if (!Array.isArray(menfestList)) return null;
+  const popular = menfestList
+    .map(menfest => ({ ...menfest, likes: Number(menfest.likes) || 0, createdAtTime: new Date(menfest.created_at).getTime() }))
+    .filter(menfest => menfest.likes > 0 && Number.isFinite(menfest.createdAtTime) && menfest.createdAtTime >= sinceTime)
+    .sort((a, b) => b.likes - a.likes || b.createdAtTime - a.createdAtTime);
+  return popular[0] || null;
+}
+
+function MenfestOfTheWeekCard({ menfest, onOpen }) {
+  const accent = MENFEST_COLOR_HEX[menfest.color] || MENFEST_COLOR_HEX.violet;
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-3xl border-2 border-amber-400/40 bg-gradient-to-br from-amber-500/15 via-rose-500/10 to-indigo-500/15 p-5 sm:p-6 shadow-xl"
+      style={{ borderColor: `${accent}66` }}
+    >
+      <div aria-hidden="true" className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-amber-400/20 blur-2xl" />
+      <div className="relative space-y-3">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/50 bg-amber-500/20 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-amber-300">
+          👑 MENFEST OF THE WEEK
+        </span>
+
+        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <span
+            className="rounded-lg border px-2 py-0.5 font-bold"
+            style={{ backgroundColor: `${accent}20`, borderColor: `${accent}40`, color: accent }}
+          >
+            Kepada: {menfest.to_who || 'Semua Orang'}
+          </span>
+          <span className="rounded-lg border border-gray-500/20 bg-gray-500/10 px-2 py-0.5 font-medium text-gray-400">
+            Dari: {menfest.sender || 'Anonim'}
+          </span>
+        </div>
+
+        <blockquote
+          className="border-l-4 pl-3 text-sm font-medium leading-relaxed"
+          style={{ borderLeftColor: accent }}
+        >
+          {menfest.message}
+        </blockquote>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">
+          <div className="flex items-center gap-3">
+            <span className="rounded-full border border-rose-500/30 bg-rose-500/15 px-3 py-1 text-xs font-bold text-rose-400">
+              ❤️ {menfest.likes} suka
+            </span>
+            <span className="text-[10px] font-medium text-gray-500">
+              {new Date(menfest.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onOpen}
+            className="rounded-xl bg-gradient-to-r from-pink-500 to-indigo-600 px-3.5 py-2 text-xs font-bold text-white transition hover:brightness-110 active:scale-95"
+          >
+            🔥 TERPOPULER MINGGU INI →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BirthdayWidget({ siswaList = [] }) {
-  const now = new Date();
-  const thisMonth = now.getMonth() + 1;
-  const todayStr = `${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  
-  const birthdays = siswaList.filter(s => {
-    if (!s.birthday) return false;
-    const [, month] = s.birthday.split('-');
-    return parseInt(month) === thisMonth;
-  }).sort((a,b) => {
-    const da = a.birthday.slice(5);
-    const db = b.birthday.slice(5);
-    return da.localeCompare(db);
-  });
+  const today = getWIBTodayParts();
+  const todayStr = getWIBTodayKey();
+
+  // Selaras dengan Anggota.jsx: pakai parser aman + zona waktu WIB.
+  const birthdays = siswaList
+    .map(s => ({ member: s, parsed: parseBirthdayMonthDay(s?.birthday) }))
+    .filter(entry => entry.parsed && entry.parsed.month === today.month)
+    .sort((a, b) => {
+      const keyA = `${String(a.parsed.month).padStart(2, '0')}-${String(a.parsed.day).padStart(2, '0')}`;
+      const keyB = `${String(b.parsed.month).padStart(2, '0')}-${String(b.parsed.day).padStart(2, '0')}`;
+      // Anggota yang ultah hari ini dinaikkan ke paling atas.
+      const todayA = keyA === todayStr ? 0 : 1;
+      const todayB = keyB === todayStr ? 0 : 1;
+      return todayA - todayB || keyA.localeCompare(keyB);
+    });
+
+  const todayCount = birthdays.filter(entry => {
+    const key = `${String(entry.parsed.month).padStart(2, '0')}-${String(entry.parsed.day).padStart(2, '0')}`;
+    return key === todayStr;
+  }).length;
 
   return (
     <div className="space-y-2">
+      {todayCount > 0 && (
+        <p className="rounded-xl border border-amber-400/40 bg-amber-500/15 px-2.5 py-1.5 text-center text-[11px] font-bold text-amber-300 animate-pulse">
+          🎉 {todayCount} anggota berulang tahun hari ini!
+        </p>
+      )}
       {birthdays.length === 0 ? (
         <p className="text-gray-400 text-xs py-4 text-center">Tidak ada ulang tahun di bulan ini 🎉</p>
-      ) : birthdays.map(s => {
-        const mmdd = s.birthday.slice(5);
-        const isToday = mmdd === todayStr;
+      ) : birthdays.map(({ member: s }) => {
+        const isToday = isBirthdayToday(s.birthday);
         return (
-          <div key={s.id} className={`flex items-center gap-3 p-2.5 rounded-2xl border transition-all ${
-            isToday ? 'bg-yellow-500/20 border-yellow-500/40' : 'bg-white/5 border-transparent'
-          }`}>
-            <img src={s.photo} alt={s.name} className="w-9 h-9 rounded-xl object-cover bg-indigo-100" />
+          <div
+            key={s.id}
+            className={`flex items-center gap-3 p-2.5 rounded-2xl border transition-all ${
+              isToday
+                ? 'bg-amber-500/20 border-amber-400/50 shadow-[0_0_15px_rgba(251,191,36,0.25)]'
+                : 'bg-white/5 border-transparent'
+            }`}
+          >
+            <img
+              src={s.photo}
+              alt={s.name}
+              className={`w-9 h-9 rounded-xl object-cover bg-indigo-100 ${isToday ? 'ring-2 ring-amber-400' : ''}`}
+            />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold truncate">{s.name}</p>
               <p className="text-[10px] text-indigo-400">{s.prodi}</p>
             </div>
             <div className="text-right shrink-0">
-              <span className="text-[11px] font-semibold text-gray-400">
-                {new Date(s.birthday).toLocaleDateString('id-ID', { day:'numeric', month:'short' })}
-              </span>
-              {isToday && <span className="ml-1 text-sm animate-bounce">🎂</span>}
+              {isToday ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 px-2 py-0.5 text-[10px] font-black text-slate-900">
+                  🎂 HARI INI
+                </span>
+              ) : (
+                <span className="text-[11px] font-semibold text-gray-400">
+                  {formatBirthdayIndo(s.birthday)}
+                </span>
+              )}
             </div>
           </div>
         );
@@ -116,15 +228,17 @@ function BirthdayWidget({ siswaList = [] }) {
   );
 }
 
-export default function Beranda({ 
+export default function Beranda({
   setActivePage,
+  selectedProdi = 'Semua',
   setSelectedProdi,
   anggotaList = [],
   prodiList = initialProdi,
   classInfo = defaultClassInfo,
   tugasList = [],
   tugasLoading = false,
-  menfestList = []
+  menfestList = [],
+  jadwalList = []
 }) {
   const { isDark } = useTheme();
   const [galeri, setGaleri] = useState(defaultGaleri);
@@ -198,7 +312,9 @@ export default function Beranda({
     .filter(t => t && t.diffDays >= 0 && t.diffDays <= 2)
     .sort((a, b) => a.deadlineTime - b.deadlineTime);
   const displayedUrgentTasks = urgentTasks.slice(0, 3);
+  const topMenfest = getTopMenfest(menfestList, sevenDaysAgoTime);
   const remainingCount = urgentTasks.length - 3;
+
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl mx-auto">
@@ -286,8 +402,8 @@ export default function Beranda({
             icon: '🎂', 
             label: 'Ulang Tahun Bulan Ini', 
             value: anggotaList.filter(s => {
-              if (!s.birthday) return false;
-              return parseInt(s.birthday.slice(5,7)) === (new Date().getMonth()+1);
+              const parsed = parseBirthdayMonthDay(s?.birthday);
+              return Boolean(parsed) && parsed.month === getWIBTodayParts().month;
             }).length,
             action: () => setActivePage('prodi')
           },
@@ -309,6 +425,14 @@ export default function Beranda({
           </div>
         ))}
       </div>
+
+      {/* Live Jadwal Kuliah Hari Ini (Realtime WIB) */}
+      <JadwalHariIniLive
+        jadwalList={jadwalList}
+        selectedProdi={selectedProdi}
+        setSelectedProdi={setSelectedProdi}
+        setActivePage={setActivePage}
+      />
 
       {/* 2 Column Layout: Pengumuman & Right widgets */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -355,7 +479,7 @@ export default function Beranda({
         <div className="space-y-6">
           
           {/* Deadline Countdown */}
-          <div className={`rounded-3xl p-6 border ${
+          <div key="deadline" className={`rounded-3xl p-6 border ${
             isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
           }`}>
             <div className="flex items-center justify-between mb-4">
@@ -391,7 +515,7 @@ export default function Beranda({
           </div>
 
           {/* Birthday Widget */}
-          <div className={`rounded-3xl p-6 border ${
+          <div key="birthday" className={`rounded-3xl p-6 border ${
             isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
           }`}>
             <h2 className="font-extrabold text-base mb-3 flex items-center gap-2">
@@ -400,6 +524,26 @@ export default function Beranda({
             <BirthdayWidget siswaList={anggotaList} />
           </div>
 
+          {/* Menfest of the Week */}
+          {topMenfest && (
+            <div key="menfest-of-the-week" className={`rounded-3xl p-6 border ${
+              isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
+            }`}>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="font-extrabold text-base flex items-center gap-2">
+                  <span>💌</span> Pesan Terpopuler
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setActivePage('menfest')}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 font-bold whitespace-nowrap"
+                >
+                  Buka Menfest →
+                </button>
+              </div>
+              <MenfestOfTheWeekCard menfest={topMenfest} onOpen={() => setActivePage('menfest')} />
+            </div>
+          )}
         </div>
 
       </div>

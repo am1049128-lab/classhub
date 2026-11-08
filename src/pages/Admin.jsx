@@ -1,4 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { formatBirthdayIndo } from "../utils/birthday";
+import {
+  buildExcelFileName,
+  buildExcelHtml,
+  downloadExcel,
+} from "../utils/csv";
 import { useTheme } from "../context/ThemeContext";
 import {
   getSupabaseConfig,
@@ -26,8 +32,6 @@ import {
   galeri as defaultGaleri,
 } from "../data/dummy";
 
-
-
 const sections = [
   { id: "overview", label: "Overview", icon: "⌂" },
   { id: "anggota", label: "Data Anggota", icon: "♙" },
@@ -38,8 +42,107 @@ const sections = [
   { id: "database", label: "Database", icon: "◈" },
   { id: "tugas", label: "Kelola Tugas", icon: "task" },
   { id: "jadwal", label: "Kelola Jadwal", icon: "calendar" },
+  { id: "rekap", label: "Rekap & Export", icon: "📊" },
   { id: "security", label: "Keamanan Akun", icon: "lock" },
 ];
+
+const JADWAL_HARI_ORDER = [
+  "Senin",
+  "Selasa",
+  "Rabu",
+  "Kamis",
+  "Jumat",
+  "Sabtu",
+  "Minggu",
+];
+
+const isTugasAktif = (tugas) =>
+  String(tugas?.status || "Belum")
+    .trim()
+    .toLowerCase() !== "selesai";
+
+// Definisi kolom rekap dipisah dari komponen agar header & urutan nilai
+// konsisten antara kartu rekap dan berkas Excel yang diunduh.
+const rekapExport = {
+  anggota: {
+    baseName: "rekap_anggota",
+    sheetName: "Data Mahasiswa",
+    headers: [
+      "NIM",
+      "Nama Lengkap",
+      "Panggilan",
+      "Prodi",
+      "Tanggal Lahir",
+      "Instagram",
+      "Quote",
+    ],
+    buildRows: (anggota) =>
+      anggota.map((member) => [
+        member.nim || "-",
+        member.name || "",
+        member.nickname || "",
+        member.prodi || "",
+        member.birthday ? formatBirthdayIndo(member.birthday) : "-",
+        member.instagram || "-",
+        member.quote || "",
+      ]),
+  },
+  tugas: {
+    baseName: "rekap_tugas",
+    sheetName: "Rekap Tugas",
+    headers: [
+      "No",
+      "Mata Kuliah",
+      "Judul Tugas",
+      "Deadline",
+      "Status",
+      "Deskripsi",
+    ],
+    buildRows: (tugas) =>
+      tugas.map((item, index) => [
+        index + 1,
+        item.mapel || "-",
+        item.judul || "-",
+        item.deadline || "-",
+        item.status || "Belum",
+        item.deskripsi || "",
+      ]),
+  },
+  jadwal: {
+    baseName: "rekap_jadwal",
+    sheetName: "Jadwal Kuliah",
+    headers: ["Hari", "Jam", "Mata Kuliah", "Dosen", "Ruangan", "Prodi"],
+    buildRows: (jadwal) =>
+      [...jadwal]
+        .sort(
+          (a, b) =>
+            JADWAL_HARI_ORDER.indexOf(a.hari) -
+              JADWAL_HARI_ORDER.indexOf(b.hari) ||
+            String(a.jam || "").localeCompare(String(b.jam || "")),
+        )
+        .map((item) => [
+          item.hari || "-",
+          item.jam || "-",
+          item.mapel || "-",
+          item.guru || "-",
+          item.ruangan || "-",
+          item.prodi || "Semua",
+        ]),
+  },
+};
+
+const exportRecapExcel = (kind, list) => {
+  const config = rekapExport[kind];
+  if (!config) throw new Error(`Jenis rekap tidak dikenal: ${kind}`);
+  downloadExcel(
+    buildExcelFileName(config.baseName),
+    buildExcelHtml({
+      sheetName: config.sheetName,
+      headers: config.headers,
+      rows: config.buildRows(list),
+    }),
+  );
+};
 
 const emptyMember = (prodi = "") => ({
   name: "",
@@ -163,7 +266,11 @@ function TaskIcon() {
     >
       <rect x="5" y="4" width="14" height="17" rx="2" />
       <path d="M9 4V3h6v1" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="m8.5 13 2.5 2.5 4.5-5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="m8.5 13 2.5 2.5 4.5-5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -179,7 +286,11 @@ function CalendarIcon() {
       aria-hidden="true"
     >
       <rect x="3" y="5" width="18" height="16" rx="2" />
-      <path d="M3 10h18M8 3v4M16 3v4" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M3 10h18M8 3v4M16 3v4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -291,7 +402,9 @@ function StatCard({ label, value, detail, icon, accent, isDark }) {
           >
             {label}
           </p>
-          <p className="mt-2 text-2xl sm:text-3xl font-black tracking-tight">{value}</p>
+          <p className="mt-2 text-2xl sm:text-3xl font-black tracking-tight">
+            {value}
+          </p>
           <p
             className={`mt-1 text-[11px] ${isDark ? "text-slate-500" : "text-slate-400"}`}
           >
@@ -303,6 +416,71 @@ function StatCard({ label, value, detail, icon, accent, isDark }) {
         </span>
       </div>
     </div>
+  );
+}
+
+function RecapCard({
+  isDark,
+  icon,
+  title,
+  description,
+  countLabel,
+  count,
+  loading,
+  accent,
+  buttonLabel,
+  disabledReason,
+  onExport,
+}) {
+  return (
+    <section
+      className={`relative flex flex-col overflow-hidden rounded-2xl border p-5 ${isDark ? "border-white/10 bg-white/[0.045]" : "border-slate-200 bg-white shadow-sm"}`}
+    >
+      <div
+        className={`pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full blur-2xl ${accent}`}
+      />
+      <div className="relative flex flex-1 flex-col">
+        <div className="flex items-start justify-between gap-3">
+          <span className="grid h-11 w-11 place-items-center rounded-xl bg-indigo-500/15 text-xl">
+            {icon}
+          </span>
+          <span
+            className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${isDark ? "bg-white/[0.06] text-slate-400" : "bg-slate-100 text-slate-500"}`}
+          >
+            XLS
+          </span>
+        </div>
+        <h2 className="mt-4 text-base font-black">{title}</h2>
+        <p
+          className={`mt-1 text-xs leading-relaxed ${isDark ? "text-slate-500" : "text-slate-400"}`}
+        >
+          {description}
+        </p>
+        <div className="mt-5 flex items-end gap-2">
+          <span className="text-3xl font-black tracking-tight">
+            {loading ? "…" : count}
+          </span>
+          <span
+            className={`pb-1 text-xs font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}
+          >
+            {countLabel}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onExport}
+          disabled={Boolean(disabledReason)}
+          className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <span aria-hidden="true">↓</span> {buttonLabel}
+        </button>
+        {disabledReason && (
+          <p className="mt-2 text-center text-[11px] text-slate-500">
+            {disabledReason}
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -418,6 +596,7 @@ export default function Admin({
   });
   const [jadwalList, setJadwalList] = useState([]);
   const [jadwalLoading, setJadwalLoading] = useState(false);
+  const rekapFetchedRef = useRef(false);
   const [jadwalForm, setJadwalForm] = useState({
     hari: "Senin",
     prodi: prodiList[0] || "Semua",
@@ -455,7 +634,8 @@ export default function Admin({
     const loadMenfest = async () => {
       try {
         const result = await getMenfestList();
-        if (isMounted) onUpdateMenfest?.(Array.isArray(result?.data) ? result.data : []);
+        if (isMounted)
+          onUpdateMenfest?.(Array.isArray(result?.data) ? result.data : []);
       } catch (error) {
         console.warn("Menfest gagal dimuat di Admin:", error);
       }
@@ -482,6 +662,36 @@ export default function Admin({
         .finally(() => setTugasLoading(false));
     }
     if (activeSection === "jadwal") {
+      setJadwalLoading(true);
+      getJadwalList()
+        .then((result) =>
+          setJadwalList(Array.isArray(result?.data) ? result.data : []),
+        )
+        .catch((error) => {
+          setJadwalList([]);
+          notify(error.message || "Jadwal gagal dimuat.", "error");
+        })
+        .finally(() => setJadwalLoading(false));
+    }
+    if (activeSection !== "rekap") {
+      // Kunjungan berikutnya ke halaman rekap memuat ulang data terbaru.
+      rekapFetchedRef.current = false;
+      return;
+    }
+    if (!rekapFetchedRef.current) {
+      // Satu kali per kunjungan: kartu rekap harus memakai data terkini, tetapi
+      // jangan mengulang fetch saat daftar kosong (mis. Supabase error).
+      rekapFetchedRef.current = true;
+      setTugasLoading(true);
+      getTugasList()
+        .then((result) =>
+          setTugasList(Array.isArray(result?.data) ? result.data : []),
+        )
+        .catch((error) => {
+          setTugasList([]);
+          notify(error.message || "Tugas gagal dimuat.", "error");
+        })
+        .finally(() => setTugasLoading(false));
       setJadwalLoading(true);
       getJadwalList()
         .then((result) =>
@@ -531,7 +741,6 @@ export default function Admin({
     if (icon === "calendar") return <CalendarIcon />;
     return icon;
   };
-
 
   const navigate = (section) => {
     setActiveSection(section);
@@ -870,7 +1079,12 @@ export default function Admin({
   };
 
   const handleLoadTemplateUmiba = async () => {
-    if (!window.confirm("Muat 8 jadwal UMIBA S1 FTIA? Jadwal yang ada tidak akan dihapus.")) return;
+    if (
+      !window.confirm(
+        "Muat 8 jadwal UMIBA S1 FTIA? Jadwal yang ada tidak akan dihapus.",
+      )
+    )
+      return;
     try {
       const records = await addJadwalBatch(JADWAL_UMIBA_S1_FTIA);
       setJadwalList((previous) => [...records, ...previous]);
@@ -969,7 +1183,13 @@ export default function Admin({
               disabled={loginLoading}
               className="w-full rounded-xl bg-indigo-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {loginLoading ? "Memverifikasi..." : <>Masuk ke Dashboard <span aria-hidden="true">→</span></>}
+              {loginLoading ? (
+                "Memverifikasi..."
+              ) : (
+                <>
+                  Masuk ke Dashboard <span aria-hidden="true">→</span>
+                </>
+              )}
             </button>
           </form>
           <p
@@ -989,6 +1209,8 @@ export default function Admin({
   // bila storage lama atau respons jaringan tidak berbentuk array.
   const safeTugasList = Array.isArray(tugasList) ? tugasList : [];
   const safeJadwalList = Array.isArray(jadwalList) ? jadwalList : [];
+  const safeAnggotaList = Array.isArray(anggotaList) ? anggotaList : [];
+  const tugasAktifList = safeTugasList.filter(isTugasAktif);
   const inputClass = `w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 ${isDark ? "border-white/10 bg-black/20" : "border-slate-200 bg-slate-50"}`;
   const panelClass = `rounded-2xl border p-5 sm:p-6 ${isDark ? "border-white/10 bg-white/[0.045]" : "border-slate-200 bg-white shadow-sm"}`;
 
@@ -1442,7 +1664,7 @@ export default function Admin({
                             </span>
                           </td>
                           <td className="px-3 py-3 text-slate-400 text-[11px]">
-                            {member.nim || '-'}
+                            {member.nim || "-"}
                           </td>
                           <td className="max-w-[240px] truncate px-3 py-3 text-slate-500">
                             {member.quote}
@@ -1549,6 +1771,124 @@ export default function Admin({
             </section>
           )}
 
+          {activeSection === "rekap" && (
+            <div className="space-y-6">
+              <div
+                className={`flex flex-col gap-3 rounded-2xl border p-5 sm:flex-row sm:items-center sm:justify-between ${isDark ? "border-indigo-400/20 bg-indigo-500/[0.07]" : "border-indigo-100 bg-indigo-50"}`}
+              >
+                <div className="min-w-0">
+                  <h2 className="font-black">Pusat rekap data</h2>
+                  <p
+                    className={`mt-1 text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                  >
+                    Unduh ringkasan kelas dalam format Excel (.xls) dengan tabel
+                    bergaris rapi & nama berkas otomatis memakai tanggal hari
+                    ini.
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-bold ${isDark ? "bg-white/[0.06] text-indigo-300" : "bg-white text-indigo-600"}`}
+                >
+                  {buildExcelFileName("rekap")}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+                <RecapCard
+                  isDark={isDark}
+                  icon="♙"
+                  title="Export Data Mahasiswa"
+                  description="NIM, Nama Lengkap, Panggilan, Prodi, Tanggal Lahir, Instagram, Quote."
+                  countLabel="mahasiswa terdaftar"
+                  count={safeAnggotaList.length}
+                  accent="bg-indigo-500/20"
+                  buttonLabel="Export Data Mahasiswa (.xls)"
+                  disabledReason={
+                    safeAnggotaList.length === 0
+                      ? "Belum ada anggota untuk diekspor."
+                      : ""
+                  }
+                  onExport={() => {
+                    exportRecapExcel("anggota", safeAnggotaList);
+                    notify(
+                      `${safeAnggotaList.length} data mahasiswa diekspor.`,
+                      "success",
+                    );
+                  }}
+                />
+                <RecapCard
+                  isDark={isDark}
+                  icon="📝"
+                  title="Export Rekap Tugas"
+                  description="No, Mata Kuliah, Judul Tugas, Deadline, Status, Deskripsi."
+                  countLabel="tugas aktif"
+                  count={tugasAktifList.length}
+                  loading={tugasLoading}
+                  accent="bg-violet-500/20"
+                  buttonLabel="Export Rekap Tugas (.xls)"
+                  disabledReason={
+                    tugasAktifList.length === 0
+                      ? tugasLoading
+                        ? ""
+                        : "Tidak ada tugas aktif untuk diekspor."
+                      : ""
+                  }
+                  onExport={() => {
+                    exportRecapExcel("tugas", tugasAktifList);
+                    notify(
+                      `${tugasAktifList.length} tugas aktif diekspor.`,
+                      "success",
+                    );
+                  }}
+                />
+                <RecapCard
+                  isDark={isDark}
+                  icon="🗓"
+                  title="Export Jadwal Kuliah"
+                  description="Hari, Jam, Mata Kuliah, Dosen, Ruangan, Prodi."
+                  countLabel="sesi jadwal"
+                  count={safeJadwalList.length}
+                  loading={jadwalLoading}
+                  accent="bg-emerald-500/20"
+                  buttonLabel="Export Jadwal Kuliah (.xls)"
+                  disabledReason={
+                    safeJadwalList.length === 0
+                      ? jadwalLoading
+                        ? ""
+                        : "Belum ada sesi jadwal untuk diekspor."
+                      : ""
+                  }
+                  onExport={() => {
+                    exportRecapExcel("jadwal", safeJadwalList);
+                    notify(
+                      `${safeJadwalList.length} sesi jadwal diekspor.`,
+                      "success",
+                    );
+                  }}
+                />
+              </div>
+              <section className={panelClass}>
+                <h2 className="font-black">Catatan export</h2>
+                <ul
+                  className={`mt-3 space-y-2 text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                >
+                  <li>
+                    • Berkas .xls memakai UTF-8 (BOM) agar rapi dibuka di Excel.
+                  </li>
+                  <li>
+                    • Tugas dengan status <strong>Selesai</strong> tidak
+                    dihitung sebagai tugas aktif dan tidak disertakan.
+                  </li>
+                  <li>
+                    • Nama berkas:{" "}
+                    <code className="font-mono">
+                      rekap_[kategori]_classhub_[YYYY-MM-DD].xls
+                    </code>
+                  </li>
+                </ul>
+              </section>
+            </div>
+          )}
+
           {activeSection === "menfest" && (
             <section className={panelClass}>
               <div className="mb-6">
@@ -1598,7 +1938,9 @@ export default function Admin({
                             })
                           : "Waktu tidak tersedia"}
                       </p>
-                      <p className="text-sm text-slate-200 bg-slate-900/40 p-3 rounded-lg mt-2 break-words leading-relaxed">{item.message}</p>
+                      <p className="text-sm text-slate-200 bg-slate-900/40 p-3 rounded-lg mt-2 break-words leading-relaxed">
+                        {item.message}
+                      </p>
                     </article>
                   ))
                 )}
@@ -1871,12 +2213,18 @@ export default function Admin({
                     Jadwal hanya dapat dikelola oleh admin.
                   </p>
                 </div>
-                <div className={`mb-5 flex flex-col gap-2.5 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between ${isDark ? "border-emerald-400/20 bg-emerald-500/5" : "border-emerald-200 bg-emerald-50"}`}>
+                <div
+                  className={`mb-5 flex flex-col gap-2.5 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between ${isDark ? "border-emerald-400/20 bg-emerald-500/5" : "border-emerald-200 bg-emerald-50"}`}
+                >
                   <div className="min-w-0">
-                    <p className={`text-xs font-bold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>
+                    <p
+                      className={`text-xs font-bold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
+                    >
                       📋 Template Jadwal
                     </p>
-                    <p className={`mt-0.5 text-[11px] leading-relaxed ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+                    <p
+                      className={`mt-0.5 text-[11px] leading-relaxed ${isDark ? "text-slate-500" : "text-slate-500"}`}
+                    >
                       Isi otomatis jadwal S1 FTIA UMIBA.
                     </p>
                   </div>
@@ -2097,7 +2445,9 @@ export default function Admin({
             <section className={`${panelClass} max-w-3xl`}>
               <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xl ${isDark ? "bg-emerald-500/10 border border-emerald-400/20" : "bg-emerald-50 border border-emerald-200"}`}>
+                  <span
+                    className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xl ${isDark ? "bg-emerald-500/10 border border-emerald-400/20" : "bg-emerald-50 border border-emerald-200"}`}
+                  >
                     🛡️
                   </span>
                   <div className="min-w-0">
@@ -2113,21 +2463,32 @@ export default function Admin({
                 </span>
               </div>
 
-              <p className={`text-xs leading-relaxed ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                Email dan password administrator dikelola sepenuhnya melalui Supabase Auth.
-                Portal ini tidak menyimpan kredensial apa pun di sisi client.
+              <p
+                className={`text-xs leading-relaxed ${isDark ? "text-slate-400" : "text-slate-600"}`}
+              >
+                Email dan password administrator dikelola sepenuhnya melalui
+                Supabase Auth. Portal ini tidak menyimpan kredensial apa pun di
+                sisi client.
               </p>
 
-              <div className={`mt-5 rounded-xl border p-4 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
-                <p className={`mb-3 text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+              <div
+                className={`mt-5 rounded-xl border p-4 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}
+              >
+                <p
+                  className={`mb-3 text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                >
                   Lapisan Keamanan Aktif
                 </p>
                 <ul className="space-y-2.5">
                   <li className="flex items-start gap-2.5">
                     <span className="shrink-0 text-sm leading-5">🔐</span>
                     <div className="min-w-0">
-                      <p className="text-xs font-bold leading-5">Otentikasi Berbasis Token JWT</p>
-                      <p className={`text-[11px] leading-relaxed ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+                      <p className="text-xs font-bold leading-5">
+                        Otentikasi Berbasis Token JWT
+                      </p>
+                      <p
+                        className={`text-[11px] leading-relaxed ${isDark ? "text-slate-500" : "text-slate-500"}`}
+                      >
                         Setiap sesi diverifikasi ulang secara berkala.
                       </p>
                     </div>
@@ -2135,8 +2496,12 @@ export default function Admin({
                   <li className="flex items-start gap-2.5">
                     <span className="shrink-0 text-sm leading-5">☁️</span>
                     <div className="min-w-0">
-                      <p className="text-xs font-bold leading-5">Kredensial Terenkripsi Cloud</p>
-                      <p className={`text-[11px] leading-relaxed ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+                      <p className="text-xs font-bold leading-5">
+                        Kredensial Terenkripsi Cloud
+                      </p>
+                      <p
+                        className={`text-[11px] leading-relaxed ${isDark ? "text-slate-500" : "text-slate-500"}`}
+                      >
                         Password di-hash oleh Supabase, bukan disimpan lokal.
                       </p>
                     </div>
@@ -2144,8 +2509,12 @@ export default function Admin({
                   <li className="flex items-start gap-2.5">
                     <span className="shrink-0 text-sm leading-5">🛡️</span>
                     <div className="min-w-0">
-                      <p className="text-xs font-bold leading-5">Sesi Dilindungi Kebijakan RLS</p>
-                      <p className={`text-[11px] leading-relaxed ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+                      <p className="text-xs font-bold leading-5">
+                        Sesi Dilindungi Kebijakan RLS
+                      </p>
+                      <p
+                        className={`text-[11px] leading-relaxed ${isDark ? "text-slate-500" : "text-slate-500"}`}
+                      >
                         Row Level Security membatasi akses data sensitif.
                       </p>
                     </div>
@@ -2153,11 +2522,19 @@ export default function Admin({
                 </ul>
               </div>
 
-              <div className={`mt-4 flex items-start gap-2.5 rounded-xl border p-3 ${isDark ? "border-indigo-400/20 bg-indigo-500/5" : "border-indigo-200 bg-indigo-50"}`}>
+              <div
+                className={`mt-4 flex items-start gap-2.5 rounded-xl border p-3 ${isDark ? "border-indigo-400/20 bg-indigo-500/5" : "border-indigo-200 bg-indigo-50"}`}
+              >
                 <span className="shrink-0 text-sm">💡</span>
-                <p className={`text-[11px] leading-relaxed ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                  Untuk mengganti email atau password admin, kelola langsung melalui
-                  dashboard Supabase pada menu <span className="font-mono font-bold">Authentication → Users</span>.
+                <p
+                  className={`text-[11px] leading-relaxed ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                >
+                  Untuk mengganti email atau password admin, kelola langsung
+                  melalui dashboard Supabase pada menu{" "}
+                  <span className="font-mono font-bold">
+                    Authentication → Users
+                  </span>
+                  .
                 </p>
               </div>
             </section>
@@ -2355,7 +2732,6 @@ export default function Admin({
           </div>
         </div>
       )}
-
     </div>
   );
 }

@@ -1,0 +1,12 @@
+{
+ "blobs": [
+  160,
+  null,
+  null
+ ],
+ "texts": [
+  "NIM,Nama Lengkap,Panggilan,Prodi,Tanggal Lahir,Instagram,Quote\r\n2100018001,Rizky Aditya,Rizky,Ilmu Komputer,15 Maret,@rizky.adit,\"Belajar, bukan untuk nilai\"",
+  null,
+  null
+ ]
+}

@@ -487,6 +487,7 @@ export async function addJadwal(item) {
   const record = inserted || { ...payload, id: Date.now() };
   const updated = [record, ...current];
   safeSet(JADWAL_STORAGE_KEY, updated);
+  window.dispatchEvent(new Event('classhub:jadwal-updated'));
 
   return record;
 }
@@ -527,6 +528,7 @@ export async function addJadwalBatch(items) {
     id: Date.now() + index,
   }));
   safeSet(JADWAL_STORAGE_KEY, [...records, ...current]);
+  window.dispatchEvent(new Event('classhub:jadwal-updated'));
   return records;
 }
 
@@ -571,6 +573,7 @@ export async function updateJadwal(id, updates) {
   const record = updatedRecord || (existing ? { ...existing, ...payload } : null);
   const updated = record ? current.map(j => j.id === id ? record : j) : current;
   safeSet(JADWAL_STORAGE_KEY, updated);
+  window.dispatchEvent(new Event('classhub:jadwal-updated'));
 
   return record;
 }
@@ -593,6 +596,7 @@ export async function deleteJadwalItem(id) {
   const current = Array.isArray(saved) ? saved : [];
   const updated = current.filter(j => j.id !== id);
   safeSet(JADWAL_STORAGE_KEY, updated);
+  window.dispatchEvent(new Event('classhub:jadwal-updated'));
   return true;
 }
 

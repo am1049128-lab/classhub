@@ -72,49 +72,49 @@ export default function Tugas({ prodiList = initialProdi }) {
         </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <div
           onClick={() => setFilterStatus('Belum')}
-          className={`cursor-pointer p-4 rounded-2xl border text-center transition-all hover:scale-105 ${
+          className={`cursor-pointer p-3 sm:p-4 rounded-2xl border text-center transition-all hover:scale-105 ${
             filterStatus === 'Belum' ? 'ring-2 ring-rose-500' : ''
           } ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}
         >
           <p className="text-2xl sm:text-3xl font-black text-rose-400">{countBelum}</p>
-          <p className="text-xs text-gray-400 mt-1 font-semibold">📌 Belum Dikerjakan</p>
+          <p className="text-[10px] sm:text-xs text-gray-400 mt-1 font-semibold">📌 Belum</p>
         </div>
 
         <div
           onClick={() => setFilterStatus('Proses')}
-          className={`cursor-pointer p-4 rounded-2xl border text-center transition-all hover:scale-105 ${
+          className={`cursor-pointer p-3 sm:p-4 rounded-2xl border text-center transition-all hover:scale-105 ${
             filterStatus === 'Proses' ? 'ring-2 ring-amber-500' : ''
           } ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}
         >
           <p className="text-2xl sm:text-3xl font-black text-amber-400">{countProses}</p>
-          <p className="text-xs text-gray-400 mt-1 font-semibold">⏳ Sedang Proses</p>
+          <p className="text-[10px] sm:text-xs text-gray-400 mt-1 font-semibold">⏳ Proses</p>
         </div>
 
         <div
           onClick={() => setFilterStatus('Selesai')}
-          className={`cursor-pointer p-4 rounded-2xl border text-center transition-all hover:scale-105 ${
+          className={`cursor-pointer p-3 sm:p-4 rounded-2xl border text-center transition-all hover:scale-105 ${
             filterStatus === 'Selesai' ? 'ring-2 ring-emerald-500' : ''
           } ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}
         >
           <p className="text-2xl sm:text-3xl font-black text-emerald-400">{countSelesai}</p>
-          <p className="text-xs text-gray-400 mt-1 font-semibold">✅ Sudah Selesai</p>
+          <p className="text-[10px] sm:text-xs text-gray-400 mt-1 font-semibold">✅ Selesai</p>
         </div>
       </div>
 
       {/* Filter Bar */}
-      <div className={`p-4 sm:p-5 rounded-3xl border flex flex-col sm:flex-row items-center justify-between gap-4 ${
+      <div className={`p-4 sm:p-5 rounded-3xl border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${
         isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
       }`}>
         {/* Status Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0">
           {['Semua', 'Belum', 'Proses', 'Selesai'].map(st => (
             <button
               key={st}
               onClick={() => setFilterStatus(st)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+              className={`shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 filterStatus === st
                   ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/25'
                   : isDark ? 'bg-gray-800 text-gray-400 hover:text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -126,12 +126,12 @@ export default function Tugas({ prodiList = initialProdi }) {
         </div>
 
         {/* Prodi Select */}
-        <div className="flex items-center gap-2 text-xs w-full sm:w-auto justify-end">
+        <div className="flex items-center gap-2 text-xs w-full sm:w-auto">
           <span className="text-gray-400 font-semibold shrink-0">Prodi:</span>
           <select
             value={filterProdi}
             onChange={e => setFilterProdi(e.target.value)}
-            className={`px-3 py-1.5 rounded-xl border outline-none font-medium ${
+            className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-xl border outline-none font-medium ${
               isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-300 text-gray-800'
             }`}
           >

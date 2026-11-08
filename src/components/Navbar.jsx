@@ -9,6 +9,30 @@ function MenuIcon({ open }) {
     <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
   );
 }
+
+/* Ikon User Shield: perisai otoritas dengan siluet admin di dalamnya.
+   Memakai currentColor agar otomatis mengikuti warna teks & hover navbar. */
+function AdminShieldIcon({ className = 'w-4 h-4' }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      {/* Siluet perisai */}
+      <path d="M12 3l7 2.6v5.2c0 4.3-2.9 7.9-7 9.2-4.1-1.3-7-4.9-7-9.2V5.6L12 3z" />
+      {/* Kepala admin */}
+      <circle cx="12" cy="10" r="1.9" />
+      {/* Bahu admin */}
+      <path d="M8.6 16.2c.5-1.6 1.8-2.5 3.4-2.5s2.9.9 3.4 2.5" />
+    </svg>
+  );
+}
 import { classInfo } from '../data/dummy';
 
 const navItems = [
@@ -52,14 +76,14 @@ export default function Navbar({
           {/* Logo & Brand */}
           <div 
             onClick={() => handleNavClick('beranda')}
-            className="flex items-center gap-3 cursor-pointer select-none shrink-0"
+            className="flex items-center gap-2.5 sm:gap-3 cursor-pointer select-none min-w-0 flex-1"
           >
             <img
               src={logoFtia}
               alt="Logo FTIA"
-              className="h-10 w-10 sm:h-11 sm:w-11 object-cover rounded-xl shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+              className="h-10 w-10 sm:h-11 sm:w-11 object-cover rounded-xl shadow-sm ring-1 ring-black/5 dark:ring-white/10 shrink-0"
             />
-            <div>
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-base tracking-tight bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
                   Class Hub
@@ -68,14 +92,14 @@ export default function Navbar({
                   FTIA
                 </span>
               </div>
-              <p className={`text-[11px] truncate max-w-[180px] sm:max-w-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              <p className="text-[10px] sm:text-xs text-slate-400 truncate font-medium">
                 {classInfo.name}
               </p>
             </div>
           </div>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1 shrink-0">
             {navItems.map(item => {
               const isActive = activePage === item.id;
 
@@ -162,26 +186,26 @@ export default function Navbar({
           </nav>
 
           {/* Action Buttons (Admin Portal & Theme Toggle) */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Admin Portal: akses mandiri ke halaman login admin */}
             <button
               onClick={() => handleNavClick('admin')}
-              className={`min-h-[44px] flex items-center gap-1.5 px-2.5 sm:px-3 rounded-xl text-xs font-semibold border transition-all ${
+              className={`group w-9 h-9 sm:w-auto sm:h-auto sm:px-3 sm:py-2 rounded-xl flex items-center justify-center gap-1.5 text-xs font-semibold border transition-all ${
                 isDark
-                  ? 'border-gray-700/80 bg-transparent text-gray-400 hover:border-gray-500 hover:text-gray-200 hover:bg-gray-900'
-                  : 'border-gray-200 bg-transparent text-gray-500 hover:border-gray-400 hover:text-gray-800 hover:bg-gray-50'
+                  ? 'border-gray-700/80 bg-transparent text-slate-300 hover:border-indigo-500/50 hover:text-indigo-300 hover:bg-indigo-500/10 hover:shadow-[0_0_12px_rgba(99,102,241,0.25)]'
+                  : 'border-gray-200 bg-transparent text-slate-500 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 hover:shadow-[0_0_12px_rgba(99,102,241,0.15)]'
               }`}
               title="Buka Admin Portal"
               aria-label="Buka Admin Portal"
             >
-              <span aria-hidden="true">🔒</span>
+              <AdminShieldIcon className="w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
               <span className="hidden sm:inline">Admin Portal</span>
             </button>
 
             {/* Dark / Light Mode Toggle */}
             <button
               onClick={toggleTheme}
-              className={`min-w-[44px] min-h-[44px] p-2 rounded-xl border text-sm flex items-center justify-center transition-all ${
+              className={`w-9 h-9 rounded-xl border text-sm flex items-center justify-center transition-all ${
                 isDark
                   ? 'border-gray-800 bg-gray-900 text-amber-400 hover:bg-gray-800'
                   : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
@@ -194,9 +218,10 @@ export default function Navbar({
             {/* Mobile Hamburger Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className={`lg:hidden min-w-[44px] min-h-[44px] p-2 rounded-xl border text-base flex items-center justify-center ${
+              className={`w-9 h-9 md:hidden rounded-xl border text-base flex items-center justify-center ${
                 isDark ? 'border-gray-800 bg-gray-900 text-gray-200' : 'border-gray-200 bg-gray-50 text-gray-700'
               }`}
+              aria-label={mobileMenuOpen ? 'Tutup menu' : 'Buka menu'}
             >
               <MenuIcon open={mobileMenuOpen} />
             </button>
@@ -250,7 +275,7 @@ export default function Navbar({
               isDark ? 'border-gray-700 text-gray-300 bg-gray-900' : 'border-gray-200 text-gray-600 bg-gray-50'
             }`}
           >
-            <span aria-hidden="true">🔒</span> Admin Portal
+            <AdminShieldIcon className="w-4 h-4 shrink-0" /> Admin Portal
           </button>
 
           {/* Quick Prodi Links in Mobile */}

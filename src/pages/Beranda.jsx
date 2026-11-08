@@ -317,11 +317,11 @@ export default function Beranda({
         <div className={`lg:col-span-2 rounded-3xl p-6 border ${
           isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
         }`}>
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between gap-2 mb-5">
             <h2 className="font-extrabold text-lg flex items-center gap-2">
               <span className="text-xl">📢</span> Papan Pengumuman Fakultas
             </h2>
-            <span className="text-xs px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 font-bold">
+            <span className="shrink-0 text-xs whitespace-nowrap px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 font-bold">
               7 Hari Terakhir
             </span>
           </div>

@@ -177,7 +177,7 @@ export default function Menfest({ onMenfestChange }) {
       {/* Header & Supabase Status Badge */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
             <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/20">
               💌 Menfest Campus Feed
             </span>
@@ -208,21 +208,25 @@ export default function Menfest({ onMenfestChange }) {
             Kirim pesan anonim, curahan hati, salam apresiasi, atau semangat
             untuk teman sekelas dan satu fakultas secara aman dan menyenangkan.
           </p>
-          <p
-            className={`text-xs mt-2 font-semibold ${isDark ? "text-amber-300" : "text-amber-700"}`}
+          <div
+            className={`mt-3 p-3 sm:p-4 rounded-xl text-xs sm:text-sm leading-relaxed flex items-start gap-2.5 ${
+              isDark ? "bg-amber-500/10 border border-amber-500/20" : "bg-amber-50 border border-amber-200"
+            }`}
           >
-            ⏳ Feed Menfest otomatis di-reset setiap 7 hari agar selalu segar &
-            relevan.
-          </p>
+            <span className="shrink-0 text-base">⏳</span>
+            <p className={`font-semibold ${isDark ? "text-amber-300" : "text-amber-700"}`}>
+              Feed Menfest otomatis di-reset setiap 7 hari agar selalu segar & relevan.
+            </p>
+          </div>
         </div>
 
         <button
           onClick={loadData}
           disabled={loading}
-          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
+          className={`shrink-0 w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
             isDark
               ? "border-gray-800 bg-gray-900 text-gray-300 hover:text-white"
-              : "border-gray-200 bg-white text-gray-700"
+              : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
           }`}
         >
           <span>🔄</span>
@@ -277,16 +281,16 @@ export default function Menfest({ onMenfestChange }) {
 
               {/* Dari / Anonim Toggle */}
               <div>
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center justify-between mb-2">
                   <label className="font-bold">Dari (From):</label>
-                  <label className="flex items-center gap-1.5 text-[11px] cursor-pointer text-indigo-400">
+                  <label className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-[11px] cursor-pointer text-indigo-400 hover:bg-indigo-500/20 transition-colors">
                     <input
                       type="checkbox"
                       checked={isAnon}
                       onChange={(e) => setIsAnon(e.target.checked)}
                       className="rounded"
                     />
-                    <span>Kirim Anonim 🎭</span>
+                    <span className="font-semibold">Kirim Anonim 🎭</span>
                   </label>
                 </div>
 
@@ -296,7 +300,7 @@ export default function Menfest({ onMenfestChange }) {
                     placeholder="Nama pena / inisial kamu..."
                     value={sender}
                     onChange={(e) => setSender(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-xl border outline-none focus:ring-2 focus:ring-indigo-500 ${
+                    className={`w-full px-3 py-2 rounded-xl border outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow ${
                       isDark
                         ? "bg-gray-800 border-gray-700"
                         : "bg-gray-50 border-gray-300"
@@ -307,10 +311,10 @@ export default function Menfest({ onMenfestChange }) {
 
               {/* Pilihan Warna Kartu */}
               <div>
-                <label className="block mb-1.5 font-bold">
+                <label className="block mb-2 font-bold">
                   Warna Aksen Kartu:
                 </label>
-                <div className="flex flex-wrap gap-2.5">
+                <div className="grid grid-cols-5 gap-2.5 max-w-xs mx-auto sm:flex sm:flex-wrap sm:justify-center sm:gap-2.5 sm:max-w-none">
                   {COLOR_OPTIONS.map((color) => (
                     <button
                       key={color.id}
@@ -318,9 +322,9 @@ export default function Menfest({ onMenfestChange }) {
                       title={color.label}
                       aria-label={`Pilih ${color.label}`}
                       onClick={() => setSelectedColor(color.id)}
-                      className={`h-7 w-7 rounded-full ${color.bg} shadow-sm transition-all hover:scale-110 hover:brightness-110 ${
+                      className={`h-8 w-8 rounded-full ${color.bg} shadow-md transition-all hover:scale-110 hover:brightness-110 ${
                         selectedColor === color.id
-                          ? "scale-110 ring-2 ring-white ring-offset-2 ring-offset-gray-900"
+                          ? "scale-110 ring-4 ring-white/50 ring-offset-2 ring-offset-gray-900 shadow-xl"
                           : "opacity-70 hover:opacity-100"
                       }`}
                     />
@@ -338,12 +342,12 @@ export default function Menfest({ onMenfestChange }) {
                 </div>
                 <textarea
                   required
-                  rows={4}
+                  rows={5}
                   maxLength={500}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Ketik pesan yang ingin kamu sampaikan... Bersikaplah sopan dan saling mendukung sesama mahasiswa! ✨"
-                  className={`w-full px-3 py-2.5 rounded-2xl border outline-none resize-none focus:ring-2 focus:ring-pink-500 leading-relaxed ${
+                  className={`w-full px-4 py-3 rounded-2xl border outline-none resize-none focus:ring-2 focus:ring-pink-500 leading-relaxed transition-shadow ${
                     isDark
                       ? "bg-gray-800 border-gray-700"
                       : "bg-gray-50 border-gray-300"
@@ -354,9 +358,9 @@ export default function Menfest({ onMenfestChange }) {
               <button
                 type="submit"
                 disabled={submitting || !message.trim()}
-                className="w-full py-2.5 rounded-xl font-bold bg-gradient-to-r from-pink-500 to-indigo-600 text-white hover:opacity-95 shadow-lg shadow-pink-500/25 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-xl font-bold bg-gradient-to-r from-pink-500 to-indigo-600 text-white hover:shadow-xl hover:shadow-pink-500/30 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
               >
-                <span>🚀</span>
+                <span className="text-lg">🚀</span>
                 <span>
                   {submitting
                     ? "Mengirim ke Supabase..."
@@ -423,38 +427,41 @@ export default function Menfest({ onMenfestChange }) {
                 return (
                   <div
                     key={item.id}
-                    className={`rounded-3xl p-5 sm:p-6 border bg-gradient-to-br transition-all hover:shadow-xl ${colorClass} ${
+                    className={`rounded-2xl p-5 sm:p-6 border-l-4 border bg-gradient-to-br transition-all hover:shadow-xl ${colorClass} ${
                       isDark ? "bg-gray-900/90" : "bg-white shadow-sm"
                     }`}
+                    style={{ borderLeftColor: accentColor.hex }}
                   >
                     {/* Header Info */}
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-black" style={{ color: accentColor.hex }}>
-                            To: {item.to_who}
-                          </span>
-                          <span className="text-gray-500 text-xs">•</span>
-                          <span className="text-xs text-gray-400 font-medium">
-                            From: {item.sender}
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-gray-500 mt-0.5">
-                          {item.created_at
-                            ? new Date(item.created_at).toLocaleString(
-                                "id-ID",
-                                { dateStyle: "medium", timeStyle: "short" },
-                              )
-                            : "Baru saja"}
-                        </p>
+                    <div className="flex flex-wrap items-center justify-between gap-1.5 mb-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span 
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold border shadow-sm"
+                          style={{ 
+                            backgroundColor: `${accentColor.hex}20`,
+                            borderColor: `${accentColor.hex}40`,
+                            color: accentColor.hex 
+                          }}
+                        >
+                          Kepada: {item.to_who}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-500/10 text-gray-400 border border-gray-500/20">
+                          Dari: {item.sender}
+                        </span>
                       </div>
+                      <p className="text-[10px] text-gray-500 font-medium shrink-0">
+                        {item.created_at
+                          ? new Date(item.created_at).toLocaleString(
+                              "id-ID",
+                              { dateStyle: "medium", timeStyle: "short" },
+                            )
+                          : "Baru saja"}
+                      </p>
                     </div>
 
                     {/* Pesan Menfest */}
                     <p
-                      className={`text-sm sm:text-base leading-relaxed my-3 font-medium whitespace-pre-wrap ${
-                        isDark ? "text-gray-100" : "text-gray-800"
-                      }`}
+                      className="text-sm sm:text-base leading-relaxed my-4 font-medium break-words text-slate-100"
                     >
                       {item.message}
                     </p>
@@ -557,14 +564,14 @@ export default function Menfest({ onMenfestChange }) {
 
                     {/* Bottom Actions: Like, Reply & Copy */}
                     <div
-                      className={`mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3 ${
+                      className={`mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3 ${
                         isDark ? "border-gray-800/80" : "border-gray-100"
                       }`}
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={() => handleLike(item.id, item.likes)}
-                          className="flex min-h-10 items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-400 transition-all active:scale-90"
+                          className="flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-400 transition-all hover:bg-rose-500/20 active:scale-95"
                         >
                           <span>❤️</span>
                           <span>{item.likes || 0}</span>
@@ -576,7 +583,7 @@ export default function Menfest({ onMenfestChange }) {
                               replyingTo === item.id ? null : item.id,
                             )
                           }
-                          className="flex min-h-10 items-center gap-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-xs font-bold text-indigo-400"
+                          className="flex items-center gap-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-xs font-bold text-indigo-400 transition-all hover:bg-indigo-500/20"
                         >
                           💬 Balas{" "}
                           {Array.isArray(item.replies) &&
@@ -587,7 +594,7 @@ export default function Menfest({ onMenfestChange }) {
                       </div>
                       <button
                         onClick={() => handleCopy(item.message)}
-                        className="flex min-h-10 items-center gap-1 px-2 text-xs text-gray-400 hover:text-gray-200"
+                        className="flex items-center gap-1.5 p-2 rounded-lg text-xs text-gray-400 hover:bg-slate-700/50 hover:text-gray-200 transition-colors"
                         title="Salin isi pesan"
                       >
                         <span>📋</span>

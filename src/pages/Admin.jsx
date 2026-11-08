@@ -224,11 +224,11 @@ function StructureFileInput({ onChange }) {
 function StructureCard({ item, index, isDark, inputClass, onChange }) {
   return (
     <article
-      className={`rounded-2xl border p-4 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}
+      className={`rounded-2xl border p-3 sm:p-4 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}
     >
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-3 flex items-center gap-3">
         <StructurePhoto item={item} isDark={isDark} />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-black">{item.role}</p>
           <p className="mt-1 text-[11px] text-slate-500">
             Posisi pengurus kelas
@@ -253,12 +253,12 @@ function StructureCard({ item, index, isDark, inputClass, onChange }) {
           />
         </Field>
         <Field label="Foto">
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 w-full">
             <input
               type="url"
               value={item.photo?.startsWith("data:") ? "" : item.photo || ""}
               onChange={(event) => onChange(index, "photo", event.target.value)}
-              className={`${inputClass} min-w-0`}
+              className={`${inputClass} min-w-0 flex-1`}
               placeholder="URL foto"
             />
             <label
@@ -279,7 +279,7 @@ function StructureCard({ item, index, isDark, inputClass, onChange }) {
 function StatCard({ label, value, detail, icon, accent, isDark }) {
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl border p-5 ${isDark ? "border-white/10 bg-white/[0.045]" : "border-slate-200 bg-white shadow-sm"}`}
+      className={`relative overflow-hidden rounded-2xl border p-4 sm:p-5 ${isDark ? "border-white/10 bg-white/[0.045]" : "border-slate-200 bg-white shadow-sm"}`}
     >
       <div
         className={`absolute -right-7 -top-7 h-24 w-24 rounded-full blur-2xl ${accent}`}
@@ -291,7 +291,7 @@ function StatCard({ label, value, detail, icon, accent, isDark }) {
           >
             {label}
           </p>
-          <p className="mt-2 text-3xl font-black tracking-tight">{value}</p>
+          <p className="mt-2 text-2xl sm:text-3xl font-black tracking-tight">{value}</p>
           <p
             className={`mt-1 text-[11px] ${isDark ? "text-slate-500" : "text-slate-400"}`}
           >
@@ -898,15 +898,24 @@ export default function Admin({
     notify("Informasi website berhasil diperbarui.");
   };
 
+  // Kunci scroll halaman selama layar login admin aktif agar konten di
+  // belakangnya (termasuk footer) tidak bisa ikut tergeser di HP/desktop.
+  useEffect(() => {
+    if (isLoggedIn) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow || "unset";
+    };
+  }, [isLoggedIn]);
+
   if (!isLoggedIn) {
     return (
-      <section
-        className={`relative flex min-h-[calc(100vh-5rem)] items-center justify-center overflow-hidden px-4 py-12 ${isDark ? "bg-[#090b16]" : "bg-slate-50"}`}
-      >
+      <section className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4 h-[100dvh] w-screen overflow-hidden">
         <div className="pointer-events-none absolute left-1/2 top-1/2 h-[32rem] w-[32rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-500/10 blur-3xl" />
         <Toast toast={toast} onClose={() => setToast(null)} />
         <div
-          className={`relative w-full max-w-[460px] rounded-[2rem] border p-7 shadow-2xl sm:p-10 ${isDark ? "border-white/10 bg-white/[0.06]" : "border-slate-200 bg-white"}`}
+          className={`relative m-auto max-h-full w-full max-w-[460px] overflow-y-auto rounded-[2rem] border p-7 shadow-2xl sm:p-10 ${isDark ? "border-white/10 bg-[#0d1020]" : "border-slate-200 bg-white"}`}
         >
           <div className="mb-8 flex items-center gap-3">
             <div className="grid h-12 w-12 place-items-center rounded-2xl bg-indigo-500/15 text-xl text-indigo-400">
@@ -1065,23 +1074,23 @@ export default function Admin({
         </aside>
 
         <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-10 lg:py-8">
-          <header className="mb-8 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
+          <header className="mb-8 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
               <button
                 type="button"
                 onClick={() => setSidebarOpen(true)}
-                className={`grid h-10 w-10 place-items-center rounded-xl border lg:hidden ${isDark ? "border-white/10 bg-white/[0.05]" : "border-slate-200 bg-white"}`}
+                className={`shrink-0 grid h-10 w-10 place-items-center rounded-xl border lg:hidden ${isDark ? "border-white/10 bg-white/[0.05]" : "border-slate-200 bg-white"}`}
                 aria-label="Buka menu"
               >
                 ☰
               </button>
-              <div>
+              <div className="min-w-0">
                 <p
                   className={`text-xs font-semibold ${isDark ? "text-slate-500" : "text-slate-400"}`}
                 >
                   Admin Dashboard / {activeLabel}
                 </p>
-                <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">
+                <h1 className="mt-1 text-xl sm:text-2xl lg:text-3xl font-black tracking-tight">
                   {activeSection === "overview"
                     ? "Selamat pagi, Admin."
                     : activeLabel}
@@ -1089,7 +1098,7 @@ export default function Admin({
               </div>
             </div>
             <div
-              className={`hidden items-center gap-3 rounded-xl border px-3 py-2 sm:flex ${isDark ? "border-white/10 bg-white/[0.04]" : "border-slate-200 bg-white"}`}
+              className={`hidden sm:flex items-center gap-3 rounded-xl border px-3 py-2 shrink-0 ${isDark ? "border-white/10 bg-white/[0.04]" : "border-slate-200 bg-white"}`}
             >
               <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.12)]" />
               <span
@@ -1102,7 +1111,7 @@ export default function Admin({
 
           {activeSection === "overview" && (
             <div className="space-y-7">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-4">
                 <StatCard
                   label="Total Anggota"
                   value={anggotaList.length}
@@ -1256,7 +1265,7 @@ export default function Admin({
                     </button>
                   )}
                 </div>
-                <form onSubmit={handleMemberSubmit} className="space-y-3">
+                <form onSubmit={handleMemberSubmit} className="space-y-3.5">
                   <Field label="Nama lengkap *">
                     <input
                       required
@@ -1271,7 +1280,7 @@ export default function Admin({
                       placeholder="Nama mahasiswa"
                     />
                   </Field>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Field label="Nama panggilan">
                       <input
                         value={memberForm.nickname}
@@ -1351,13 +1360,13 @@ export default function Admin({
                       type="file"
                       accept="image/*"
                       onChange={handleMemberPhotoChange}
-                      className={inputClass}
+                      className={`w-full cursor-pointer rounded-xl border px-3 py-2 text-xs text-slate-400 outline-none transition file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-indigo-500/15 file:px-3 file:py-2 file:text-xs file:font-bold file:text-indigo-300 file:transition hover:file:bg-indigo-500/25 ${isDark ? "border-white/10 bg-slate-900/60 hover:border-indigo-400/40" : "border-slate-200 bg-slate-50 hover:border-indigo-300"}`}
                     />
                     {memberForm.photo && (
                       <img
                         src={memberForm.photo}
                         alt="Preview foto anggota"
-                        className="mt-2 h-20 w-20 rounded-xl object-cover"
+                        className={`mt-2 h-20 w-20 rounded-xl border object-cover ${isDark ? "border-white/10" : "border-slate-200"}`}
                       />
                     )}
                   </Field>
@@ -1493,20 +1502,20 @@ export default function Admin({
                   Kelola daftar program studi yang tampil di Class Hub.
                 </p>
               </div>
-              <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex flex-col gap-2.5 sm:flex-row">
                 <input
                   value={newProdiName}
                   onChange={(event) => setNewProdiName(event.target.value)}
                   onKeyDown={(event) =>
                     event.key === "Enter" && handleAddProdi()
                   }
-                  className={inputClass}
+                  className={`${inputClass} flex-1`}
                   placeholder="Contoh: Sains Data"
                 />
                 <button
                   type="button"
                   onClick={handleAddProdi}
-                  className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white"
+                  className="shrink-0 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 transition-colors"
                 >
                   ＋ Tambah prodi
                 </button>
@@ -1515,11 +1524,11 @@ export default function Admin({
                 {prodiList.map((prodi) => (
                   <div
                     key={prodi}
-                    className={`flex items-center justify-between rounded-xl border p-4 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}
+                    className={`flex items-center justify-between rounded-xl border p-3 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}
                   >
-                    <div>
-                      <p className="text-sm font-bold">⌘ {prodi}</p>
-                      <p className="mt-1 text-[11px] text-slate-500">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold truncate">⌘ {prodi}</p>
+                      <p className="mt-1 text-[11px] text-indigo-400 font-medium">
                         {
                           anggotaList.filter((member) => member.prodi === prodi)
                             .length
@@ -1530,7 +1539,7 @@ export default function Admin({
                     <button
                       type="button"
                       onClick={() => handleDeleteProdi(prodi)}
-                      className="rounded-lg p-2 text-rose-400 transition hover:bg-rose-500/10"
+                      className="shrink-0 ml-2 rounded-lg p-2 text-rose-400 transition hover:bg-rose-500/10 hover:text-rose-300"
                     >
                       ×
                     </button>
@@ -1559,39 +1568,37 @@ export default function Admin({
                   menfestList.map((item) => (
                     <article
                       key={item.id}
-                      className={`flex items-start justify-between gap-4 rounded-xl border p-4 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}
+                      className={`rounded-xl border p-4 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}
                     >
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                          <span className="font-bold text-indigo-400">
+                      <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                             Untuk: {item.to_who}
                           </span>
-                          <span className="text-slate-500">•</span>
-                          <span className="text-slate-500">
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">
                             Dari: {item.sender}
                           </span>
-                          <span className="text-slate-500">•</span>
-                          <span className="text-slate-500">
-                            {item.created_at
-                              ? new Date(item.created_at).toLocaleString("id-ID", {
-                                  day: "numeric",
-                                  month: "short",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                              : "Waktu tidak tersedia"}
-                          </span>
                         </div>
-                        <p className="mt-2 text-sm leading-6">{item.message}</p>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteMenfest(item.id)}
+                          className="shrink-0 rounded-lg bg-rose-500/10 px-3 py-2 text-xs font-bold text-rose-400 transition hover:bg-rose-500/20 active:scale-95"
+                        >
+                          Hapus
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteMenfest(item.id)}
-                        className="shrink-0 rounded-lg bg-rose-500/10 px-3 py-2 text-xs font-bold text-rose-400 transition hover:bg-rose-500/20"
-                      >
-                        Hapus
-                      </button>
+                      <p className="text-[11px] text-slate-400 mb-2">
+                        {item.created_at
+                          ? new Date(item.created_at).toLocaleString("id-ID", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "Waktu tidak tersedia"}
+                      </p>
+                      <p className="text-sm text-slate-200 bg-slate-900/40 p-3 rounded-lg mt-2 break-words leading-relaxed">{item.message}</p>
                     </article>
                   ))
                 )}
@@ -1601,8 +1608,8 @@ export default function Admin({
 
           {activeSection === "galeri" && (
             <section className={panelClass}>
-              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+              <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
                   <h2 className="font-black">Kelola Galeri Dokumentasi</h2>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span
@@ -1621,7 +1628,7 @@ export default function Admin({
                   type="button"
                   disabled={galeriList.length >= 6}
                   onClick={() => openGalleryForm()}
-                  className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full shrink-0 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
                   ＋ Tambah Foto Baru
                 </button>
@@ -1630,32 +1637,32 @@ export default function Admin({
                 {galeriList.map((item) => (
                   <article
                     key={item.id}
-                    className={`overflow-hidden rounded-2xl border ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}
+                    className={`overflow-hidden rounded-2xl border transition-all hover:-translate-y-0.5 ${isDark ? "border-white/10 bg-white/[0.03] hover:border-indigo-400/30" : "border-slate-200 bg-slate-50 hover:border-indigo-300"}`}
                   >
                     <img
                       src={item.url}
                       alt={item.caption}
-                      className="aspect-video w-full object-cover"
+                      className="w-full aspect-video object-cover rounded-xl shadow-inner"
                     />
                     <div className="p-4">
-                      <h3 className="truncate text-sm font-bold">
+                      <h3 className="truncate text-sm font-extrabold tracking-tight">
                         {item.caption}
                       </h3>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {item.date || "Tanggal belum diisi"}
+                      <p className="mt-1 text-[11px] font-medium text-slate-500">
+                        📅 {item.date || "Tanggal belum diisi"}
                       </p>
-                      <div className="mt-4 flex gap-2">
+                      <div className="grid grid-cols-2 gap-2 mt-3">
                         <button
                           type="button"
                           onClick={() => openGalleryForm(item)}
-                          className="min-h-10 flex-1 rounded-xl bg-indigo-500/10 px-3 text-xs font-bold text-indigo-400"
+                          className={`rounded-lg py-2 text-xs font-bold transition ${isDark ? "bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"}`}
                         >
                           Edit
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteGallery(item.id)}
-                          className="min-h-10 flex-1 rounded-xl bg-rose-500/10 px-3 text-xs font-bold text-rose-400"
+                          className={`rounded-lg py-2 text-xs font-bold transition ${isDark ? "bg-rose-500/15 text-rose-300 hover:bg-rose-500/25" : "bg-rose-50 text-rose-600 hover:bg-rose-100"}`}
                         >
                           Hapus
                         </button>
@@ -1681,7 +1688,7 @@ export default function Admin({
                     Tugas hanya dapat dikelola oleh admin.
                   </p>
                 </div>
-                <form onSubmit={handleTugasSubmit} className="space-y-3">
+                <form onSubmit={handleTugasSubmit} className="space-y-3.5">
                   <Field label="Program studi">
                     <select
                       value={tugasForm.prodi}
@@ -1741,7 +1748,7 @@ export default function Admin({
                       className={`${inputClass} resize-none`}
                     />
                   </Field>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Field label="Deadline *">
                       <input
                         required
@@ -1784,7 +1791,7 @@ export default function Admin({
                   </Field>
                   <button
                     type="submit"
-                    className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white"
+                    className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-indigo-700 active:scale-[0.99]"
                   >
                     ＋ Tambah tugas
                   </button>
@@ -1858,22 +1865,30 @@ export default function Admin({
           {activeSection === "jadwal" && (
             <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[390px_1fr]">
               <section className={`${panelClass} h-fit`}>
-                <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 className="font-black">Tambah jadwal</h2>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Jadwal hanya dapat dikelola oleh admin.
+                <div className="mb-5">
+                  <h2 className="font-black">Tambah jadwal</h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Jadwal hanya dapat dikelola oleh admin.
+                  </p>
+                </div>
+                <div className={`mb-5 flex flex-col gap-2.5 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between ${isDark ? "border-emerald-400/20 bg-emerald-500/5" : "border-emerald-200 bg-emerald-50"}`}>
+                  <div className="min-w-0">
+                    <p className={`text-xs font-bold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>
+                      📋 Template Jadwal
+                    </p>
+                    <p className={`mt-0.5 text-[11px] leading-relaxed ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+                      Isi otomatis jadwal S1 FTIA UMIBA.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={handleLoadTemplateUmiba}
-                    className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:brightness-110"
+                    className="w-full shrink-0 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-2 text-xs font-bold text-white shadow-md shadow-emerald-500/20 transition hover:brightness-110 active:scale-[0.98] sm:w-auto"
                   >
                     📋 Muat Template UMIBA S1
                   </button>
                 </div>
-                <form onSubmit={handleJadwalSubmit} className="space-y-3">
+                <form onSubmit={handleJadwalSubmit} className="space-y-3.5">
                   <Field label="Hari *">
                     <select
                       value={jadwalForm.hari}
@@ -2046,7 +2061,7 @@ export default function Admin({
                     type="url"
                     value={supaUrl}
                     onChange={(event) => setSupaUrl(event.target.value)}
-                    className={inputClass}
+                    className={`w-full rounded-xl border px-3 py-2.5 font-mono text-xs sm:text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 ${isDark ? "border-white/10 bg-black/40 text-slate-200 placeholder:text-slate-600" : "border-slate-200 bg-slate-50 text-slate-800 placeholder:text-slate-400"}`}
                     placeholder="https://project.supabase.co"
                   />
                 </Field>
@@ -2055,22 +2070,22 @@ export default function Admin({
                     type="password"
                     value={supaKey}
                     onChange={(event) => setSupaKey(event.target.value)}
-                    className={inputClass}
+                    className={`w-full rounded-xl border px-3 py-2.5 font-mono text-xs sm:text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 ${isDark ? "border-white/10 bg-black/40 text-slate-200 placeholder:text-slate-600" : "border-slate-200 bg-slate-50 text-slate-800 placeholder:text-slate-400"}`}
                     placeholder="Public anon key"
                   />
                 </Field>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
                   <button
                     type="button"
                     onClick={handleTestSupabase}
-                    className={`rounded-xl border px-4 py-2.5 text-sm font-bold text-indigo-400 ${isDark ? "border-indigo-400/30 hover:bg-indigo-500/10" : "border-indigo-200 hover:bg-indigo-50"}`}
+                    className={`w-full sm:w-auto rounded-xl border px-4 py-2.5 text-sm font-bold text-indigo-400 transition ${isDark ? "border-indigo-400/30 hover:bg-indigo-500/10" : "border-indigo-200 hover:bg-indigo-50"}`}
                   >
                     Uji koneksi
                   </button>
                   <button
                     type="button"
                     onClick={handleSaveSupabase}
-                    className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white"
+                    className="w-full sm:w-auto rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-700 active:scale-[0.98]"
                   >
                     Simpan konfigurasi
                   </button>
@@ -2080,10 +2095,71 @@ export default function Admin({
           )}
           {activeSection === "security" && (
             <section className={`${panelClass} max-w-3xl`}>
-              <h2 className="font-black">Keamanan Akun</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Email dan password administrator dikelola melalui Supabase Auth.
+              <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xl ${isDark ? "bg-emerald-500/10 border border-emerald-400/20" : "bg-emerald-50 border border-emerald-200"}`}>
+                    🛡️
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className="font-black">Keamanan Akun</h2>
+                    <p className="mt-0.5 text-[11px] font-bold uppercase tracking-wider text-indigo-400">
+                      Supabase Auth Guard
+                    </p>
+                  </div>
+                </div>
+                <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-bold text-emerald-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Terproteksi &amp; Aktif
+                </span>
+              </div>
+
+              <p className={`text-xs leading-relaxed ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                Email dan password administrator dikelola sepenuhnya melalui Supabase Auth.
+                Portal ini tidak menyimpan kredensial apa pun di sisi client.
               </p>
+
+              <div className={`mt-5 rounded-xl border p-4 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}>
+                <p className={`mb-3 text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  Lapisan Keamanan Aktif
+                </p>
+                <ul className="space-y-2.5">
+                  <li className="flex items-start gap-2.5">
+                    <span className="shrink-0 text-sm leading-5">🔐</span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold leading-5">Otentikasi Berbasis Token JWT</p>
+                      <p className={`text-[11px] leading-relaxed ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+                        Setiap sesi diverifikasi ulang secara berkala.
+                      </p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <span className="shrink-0 text-sm leading-5">☁️</span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold leading-5">Kredensial Terenkripsi Cloud</p>
+                      <p className={`text-[11px] leading-relaxed ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+                        Password di-hash oleh Supabase, bukan disimpan lokal.
+                      </p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <span className="shrink-0 text-sm leading-5">🛡️</span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold leading-5">Sesi Dilindungi Kebijakan RLS</p>
+                      <p className={`text-[11px] leading-relaxed ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+                        Row Level Security membatasi akses data sensitif.
+                      </p>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+
+              <div className={`mt-4 flex items-start gap-2.5 rounded-xl border p-3 ${isDark ? "border-indigo-400/20 bg-indigo-500/5" : "border-indigo-200 bg-indigo-50"}`}>
+                <span className="shrink-0 text-sm">💡</span>
+                <p className={`text-[11px] leading-relaxed ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                  Untuk mengganti email atau password admin, kelola langsung melalui
+                  dashboard Supabase pada menu <span className="font-mono font-bold">Authentication → Users</span>.
+                </p>
+              </div>
             </section>
           )}
 

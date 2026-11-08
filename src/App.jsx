@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { safeGet, safeSet } from "./utils/storage";
 import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
 import Beranda from "./pages/Beranda";
 import Anggota from "./pages/Anggota";
 import Jadwal from "./pages/Jadwal";
@@ -233,6 +234,14 @@ function AppContent() {
     ),
   };
 
+  // Daftar halaman publik mahasiswa yang boleh menampilkan Footer.
+  // "admin" sengaja TIDAK dimasukkan ke daftar ini sehingga komponen Footer
+  // lenyap total di seluruh mode Admin Dashboard — baik saat layar login
+  // maupun setelah admin berhasil masuk (Data Anggota, Galeri, Tugas,
+  // Jadwal, Database, Keamanan, dll).
+  const PUBLIC_PAGES = ["beranda", "prodi", "anggota", "jadwal", "tugas", "menfest"];
+  const showFooter = PUBLIC_PAGES.includes(activePage);
+
   return (
     <div
       className={`min-h-screen w-full overflow-x-hidden flex flex-col transition-colors duration-200 ${
@@ -247,30 +256,12 @@ function AppContent() {
         prodiList={prodiList}
       />
 
-      <main className="flex-1 pb-16">{pages[activePage] || pages.beranda}</main>
+      <main className="flex-1">{pages[activePage] || pages.beranda}</main>
 
-      <footer
-        className={`border-t py-8 px-4 text-center text-xs transition-colors ${
-          isDark
-            ? "border-gray-900 bg-gray-950 text-gray-500"
-            : "border-gray-200 bg-white text-gray-400"
-        }`}
-      >
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="font-extrabold text-sm bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">
-              Class Hub
-            </span>
-            <span>—</span>
-            <span>
-              {classInfo.name} • {classInfo.school}
-            </span>
-          </div>
-          <span>
-            &copy; {new Date().getFullYear()} Class Hub. All rights reserved.
-          </span>
-        </div>
-      </footer>
+      {/* Footer hanya dirender di halaman publik mahasiswa.
+          Di mode Admin Dashboard footer tidak dirender sama sekali (null)
+          agar layout admin menjadi full-height yang bersih dan mandiri. */}
+      {showFooter && <Footer setActivePage={setActivePage} />}
     </div>
   );
 }

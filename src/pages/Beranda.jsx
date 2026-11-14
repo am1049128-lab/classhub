@@ -10,6 +10,32 @@ import {
   formatBirthdayIndo,
 } from '../utils/birthday';
 import JadwalHariIniLive from '../components/JadwalHariIniLive';
+import { getPengumumanList } from '../lib/supabase';
+
+const ANNOUNCEMENT_PAGE_SIZE = 3;
+
+/**
+ * Menentukan waktu aktivitas pengumuman.
+ * - Tugas/pengumuman buatan admin bisa tidak punya `created_at` (data dummy lama
+ *   atau database sebelum kolom tersebut terisi); memakai tanggal deadline akan
+ *   menyembunyikan pengumuman dari jendela 7 hari, jadi `updated_at` dipakai dulu,
+ *   lalu waktu "sekarang" agar pengumuman tetap tampil alih-alih hilang diam-diam.
+ * - Menfest selalu punya `created_at` di Supabase maupun storage lokal.
+ */
+function getActivityTimestamp(item, activityType) {
+  const candidates =
+    activityType === 'menfest'
+      ? [item.created_at]
+      : [item.created_at, item.createdAt, item.updated_at];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const time = typeof candidate === 'number' ? candidate : new Date(candidate).getTime();
+    if (Number.isFinite(time)) return time;
+  }
+
+  return Date.now();
+}
 
 function AnimatedCounter({ value, duration = 1350 }) {
   const [displayValue, setDisplayValue] = useState(0);
@@ -61,20 +87,30 @@ function CountdownCard({ tugas }) {
 }
 
 function AnnouncementItem({ activity }) {
+  const isPengumuman = activity.activityType === 'pengumuman';
   const isTask = activity.activityType === 'tugas';
   const deadlineValue = String(activity.deadline || '');
   const deadline = new Date(deadlineValue + (deadlineValue.includes('T') ? '' : 'T00:00:00'));
-  const activityText = isTask
-    ? `📝 Tugas Baru: ${activity.judul} (${activity.mapel}) — Deadline ${Number.isFinite(deadline.getTime()) ? deadline.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : 'tidak tersedia'}`
-    : `💌 Menfest Baru dari ${activity.sender || 'Anonim'} untuk ${activity.to_who || 'Semua Orang'}`;
+  const activityText = isPengumuman
+    ? `📣 ${activity.judul}${activity.kategori && activity.kategori !== 'Umum' ? ` (${activity.kategori})` : ''}`
+    : isTask
+      ? `📝 Tugas Baru: ${activity.judul} (${activity.mapel}) — Deadline ${Number.isFinite(deadline.getTime()) ? deadline.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : 'tidak tersedia'}`
+      : `💌 Menfest Baru dari ${activity.sender || 'Anonim'} untuk ${activity.to_who || 'Semua Orang'}`;
+  const accentClass = isPengumuman
+    ? 'border-amber-500 bg-amber-500/5'
+    : isTask
+      ? 'border-indigo-500 bg-indigo-500/5'
+      : 'border-pink-500 bg-pink-500/5';
 
   return (
-    <div className={`p-4 rounded-2xl border-l-4 transition-all hover:translate-x-1 ${
-      isTask ? 'border-indigo-500 bg-indigo-500/5' : 'border-pink-500 bg-pink-500/5'
-    }`}>
+    <div className={`p-4 rounded-2xl border-l-4 transition-all hover:translate-x-1 ${accentClass}`}>
       <h3 className="font-bold text-sm leading-snug">{activityText}</h3>
+      {isPengumuman && activity.isi && (
+        <p className="mt-1.5 text-xs leading-relaxed text-gray-500 line-clamp-2">{activity.isi}</p>
+      )}
       <p className="text-[10px] text-gray-500 mt-2 font-medium">
         🗓️ {new Date(activity.activityTimestamp).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+        {isPengumuman && activity.penulis ? ` · ${activity.penulis}` : ''}
       </p>
     </div>
   );
@@ -243,6 +279,7 @@ export default function Beranda({
   const { isDark } = useTheme();
   const [galeri, setGaleri] = useState(defaultGaleri);
   const [showPengumumanModal, setShowPengumumanModal] = useState(false);
+  const [pengumumanList, setPengumumanList] = useState([]);
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const sevenDaysAgoTime = sevenDaysAgo.getTime();
@@ -278,22 +315,63 @@ export default function Beranda({
     };
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPengumuman = () => {
+      getPengumumanList()
+        .then(result => {
+          if (isMounted) setPengumumanList(Array.isArray(result?.data) ? result.data : []);
+        })
+        .catch(error => {
+          console.warn('Pengumuman gagal dimuat di Beranda:', error);
+        });
+    };
+
+    loadPengumuman();
+    // Admin menulis pengumuman di tab lain / setelah event custom -> muat ulang feed.
+    window.addEventListener('storage', loadPengumuman);
+    window.addEventListener('classhub:pengumuman-updated', loadPengumuman);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('storage', loadPengumuman);
+      window.removeEventListener('classhub:pengumuman-updated', loadPengumuman);
+    };
+  }, []);
+
   const liveActivities = [
+    ...pengumumanList
+      .map(pengumuman => ({
+        ...pengumuman,
+        activityType: 'pengumuman',
+        activityTimestamp: getActivityTimestamp(pengumuman, 'pengumuman'),
+      }))
+      .filter(pengumuman => pengumuman.activityTimestamp >= sevenDaysAgoTime),
     ...sourceTugas
       .map(tugas => ({
         ...tugas,
         activityType: 'tugas',
-        activityTimestamp: new Date(tugas.created_at || tugas.createdAt).getTime(),
+        activityTimestamp: getActivityTimestamp(tugas, 'tugas'),
       }))
-      .filter(tugas => Number.isFinite(tugas.activityTimestamp) && tugas.activityTimestamp >= sevenDaysAgoTime),
+      .filter(tugas => tugas.activityTimestamp >= sevenDaysAgoTime),
     ...menfestList
       .map(menfest => ({
         ...menfest,
         activityType: 'menfest',
-        activityTimestamp: new Date(menfest.created_at).getTime(),
+        activityTimestamp: getActivityTimestamp(menfest, 'menfest'),
       }))
-      .filter(menfest => Number.isFinite(menfest.activityTimestamp) && menfest.activityTimestamp >= sevenDaysAgoTime),
+      .filter(menfest => menfest.activityTimestamp >= sevenDaysAgoTime),
   ].sort((a, b) => b.activityTimestamp - a.activityTimestamp);
+
+  // Papan pengumuman menampilkan satu halaman sekaligus dan tombol "Lihat
+  // Selengkapnya" mengambil alih daftar penuh di tempat. Tanpa ini kartu kiri
+  // jauh lebih tinggi dari kolom kanan sehingga menyisakan ruang kosong panjang.
+  // Kalau klik tombol mengubah `showPengumumanModal`, tombol lama hanya menambah
+  // satu baris dan sisa ruang kosong kembali muncul.
+  const visibleActivities = showPengumumanModal
+    ? liveActivities
+    : liveActivities.slice(0, ANNOUNCEMENT_PAGE_SIZE);
+  const remainingActivities = liveActivities.length - visibleActivities.length;
 
   const activeTugas = sourceTugas.filter(t => t.status !== 'Selesai' && t.status !== 'selesai');
   const today = new Date();
@@ -434,7 +512,13 @@ export default function Beranda({
         setActivePage={setActivePage}
       />
 
-      {/* 2 Column Layout: Pengumuman & Right widgets */}
+      {/*
+        Papan pengumuman dipasangkan dengan widget ulang tahun, bukan dengan
+        kolom deadline/pesan terpopuler. Kolom kanan sebelumnya setinggi ~1250px
+        sehingga kartu pengumuman ikut melar dan menyisakan ruang kosong panjang
+        di bawah tombol "Lihat Selengkapnya". Grid ini menyeimbangkan tinggi,
+        sementara daftar tetap dibatasi per halaman.
+      */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Kolom Kiri: Pengumuman Kampus (2 span) */}
@@ -459,26 +543,49 @@ export default function Beranda({
             </div>
           ) : (
             <div className="space-y-3.5">
-              {liveActivities.slice(0, 8).map(activity => (
+              {visibleActivities.map(activity => (
                 <AnnouncementItem key={`${activity.activityType}-${activity.id}`} activity={activity} />
               ))}
-              {liveActivities.length > 8 && (
+              {showPengumumanModal ? (
                 <button
                   type="button"
-                  onClick={() => setShowPengumumanModal(true)}
+                  onClick={() => setShowPengumumanModal(false)}
                   className="w-full rounded-xl border border-indigo-400/20 bg-indigo-500/5 px-4 py-2.5 text-sm font-bold text-indigo-400 transition hover:border-indigo-400/40 hover:bg-indigo-500/10"
                 >
-                  Lihat Selengkapnya ({liveActivities.length} Pengumuman) →
+                  ↑ Sembunyikan (menampilkan {liveActivities.length} pengumuman)
                 </button>
+              ) : (
+                remainingActivities > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPengumumanModal(true)}
+                    className="w-full rounded-xl border border-indigo-400/20 bg-indigo-500/5 px-4 py-2.5 text-sm font-bold text-indigo-400 transition hover:border-indigo-400/40 hover:bg-indigo-500/10"
+                  >
+                    Lihat Selengkapnya ({liveActivities.length} Pengumuman) →
+                  </button>
+                )
               )}
             </div>
           )}
         </div>
 
-        {/* Kolom Kanan: Deadline Tugas & Ulang Tahun */}
-        <div className="space-y-6">
-          
-          {/* Deadline Countdown */}
+        {/* Kolom Kanan: Ulang Tahun Bulan Ini */}
+        <div key="birthday" className={`rounded-3xl p-6 border ${
+          isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
+        }`}>
+          <h2 className="font-extrabold text-base mb-3 flex items-center gap-2">
+            <span>🎂</span> Ulang Tahun Bulan Ini
+          </h2>
+          <BirthdayWidget siswaList={anggotaList} />
+        </div>
+      </div>
+
+      {/* 2 Column Layout: Deadline Tugas & Pesan Terpopuler — kartu kanan ikut
+          mengisi tinggi baris grid agar tidak ada ruang kosong menggantung. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:grid-rows-[auto_1fr]">
+        {/* Kolom Kiri: Deadline Tugas */}
+        <div className="lg:col-span-2">
+
           <div key="deadline" className={`rounded-3xl p-6 border ${
             isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
           }`}>
@@ -513,20 +620,11 @@ export default function Beranda({
               </div>
             )}
           </div>
+        </div>
 
-          {/* Birthday Widget */}
-          <div key="birthday" className={`rounded-3xl p-6 border ${
-            isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
-          }`}>
-            <h2 className="font-extrabold text-base mb-3 flex items-center gap-2">
-              <span>🎂</span> Ulang Tahun Bulan Ini
-            </h2>
-            <BirthdayWidget siswaList={anggotaList} />
-          </div>
-
-          {/* Menfest of the Week */}
-          {topMenfest && (
-            <div key="menfest-of-the-week" className={`rounded-3xl p-6 border ${
+        <div className="flex flex-col gap-6">
+          {topMenfest ? (
+            <div key="menfest-of-the-week" className={`flex flex-1 flex-col rounded-3xl p-6 border ${
               isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
             }`}>
               <div className="mb-3 flex items-center justify-between gap-2">
@@ -543,9 +641,15 @@ export default function Beranda({
               </div>
               <MenfestOfTheWeekCard menfest={topMenfest} onOpen={() => setActivePage('menfest')} />
             </div>
+          ) : (
+            <div className={`flex flex-1 flex-col rounded-3xl p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
+              <h2 className="font-extrabold text-base mb-3 flex items-center gap-2">
+                <span>💌</span> Pesan Terpopuler
+              </h2>
+              <p className="m-auto text-xs text-gray-400">Belum ada pesan populer minggu ini.</p>
+            </div>
           )}
         </div>
-
       </div>
 
       {/* Arsip Foto Kelas - Google Drive */}

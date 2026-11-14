@@ -779,3 +779,122 @@ export async function deleteTugasItem(id) {
   return true;
 }
 
+
+// ==========================================
+// PENGUMUMAN API
+// ==========================================
+const PENGUMUMAN_STORAGE_KEY = 'classhub_pengumuman_v1';
+const PENGUMUMAN_TABLE = 'pengumuman';
+
+/**
+ * Normalisasi record pengumuman agar UI selalu menerima bentuk yang sama
+ * meskipun sumbernya Supabase, localStorage lama, atau hasil input form.
+ */
+function normalizePengumuman(item) {
+  if (!item || typeof item !== 'object') return null;
+  const judul = String(item.judul ?? item.title ?? '').trim();
+  if (!judul) return null;
+  return {
+    ...item,
+    id: item.id ?? `lokal-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    judul,
+    isi: String(item.isi ?? item.deskripsi ?? '').trim(),
+    kategori: String(item.kategori ?? '').trim() || 'Umum',
+    penulis: String(item.penulis ?? '').trim() || 'Admin Fakultas',
+    created_at: item.created_at || new Date().toISOString(),
+  };
+}
+
+/**
+ * Mengambil pengumuman dari Supabase (fallback ke localStorage).
+ * Format return: { data: [...], isSupabase: boolean }
+ */
+export async function getPengumumanList() {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from(PENGUMUMAN_TABLE)
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        const normalized = data.map(normalizePengumuman).filter(Boolean);
+        safeSet(PENGUMUMAN_STORAGE_KEY, normalized);
+        return { data: normalized, isSupabase: true };
+      }
+      console.warn('Supabase pengumuman fetch error, fallback ke local storage:', error?.message);
+    } catch (e) {
+      console.warn('Supabase pengumuman fetch exception, fallback ke local storage:', e);
+    }
+  }
+
+  const saved = safeGet(PENGUMUMAN_STORAGE_KEY, []);
+  const list = Array.isArray(saved) ? saved.map(normalizePengumuman).filter(Boolean) : [];
+  return { data: list, isSupabase: false };
+}
+
+/**
+ * Menambah pengumuman baru. Sama seperti tugas: Supabase bersifat best-effort,
+ * data selalu dicerminkan ke localStorage agar Beranda langsung menampilkannya.
+ */
+export async function addPengumuman(item) {
+  const payload = {
+    judul: String(item.judul || '').trim(),
+    isi: String(item.isi || '').trim(),
+    kategori: String(item.kategori || '').trim() || 'Umum',
+    penulis: String(item.penulis || '').trim() || 'Admin Fakultas',
+    created_at: new Date().toISOString(),
+  };
+
+  if (!payload.judul) {
+    throw new Error('Judul pengumuman wajib diisi.');
+  }
+
+  const client = getSupabaseClient();
+  let inserted = null;
+
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from(PENGUMUMAN_TABLE)
+        .insert([payload])
+        .select()
+        .single();
+
+      if (!error && data) {
+        inserted = data;
+      } else {
+        console.warn('Insert pengumuman Supabase gagal, simpan lokal:', error?.message);
+      }
+    } catch (err) {
+      console.warn('Insert pengumuman Supabase exception:', err);
+    }
+  }
+
+  const saved = safeGet(PENGUMUMAN_STORAGE_KEY, []);
+  const current = Array.isArray(saved) ? saved : [];
+  const record = normalizePengumuman(inserted || { ...payload, id: Date.now() });
+  safeSet(PENGUMUMAN_STORAGE_KEY, [record, ...current]);
+  return record;
+}
+
+/**
+ * Hapus pengumuman berdasarkan id.
+ */
+export async function deletePengumumanItem(id) {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { error } = await client.from(PENGUMUMAN_TABLE).delete().eq('id', id);
+      if (error) console.warn('Gagal delete pengumuman di Supabase:', error.message);
+    } catch (err) {
+      console.warn('Gagal delete pengumuman di Supabase:', err);
+    }
+  }
+
+  const saved = safeGet(PENGUMUMAN_STORAGE_KEY, []);
+  const current = Array.isArray(saved) ? saved : [];
+  safeSet(PENGUMUMAN_STORAGE_KEY, current.filter(item => String(item.id) !== String(id)));
+  return true;
+}

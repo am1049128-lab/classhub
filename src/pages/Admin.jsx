@@ -23,6 +23,9 @@ import {
   addJadwal,
   addJadwalBatch,
   deleteJadwalItem,
+  getPengumumanList,
+  addPengumuman,
+  deletePengumumanItem,
 } from "../lib/supabase";
 import { JADWAL_UMIBA_S1_FTIA } from "../data/jadwalUmibaPreset";
 import { safeGet, safeSet } from "../utils/storage";
@@ -39,6 +42,7 @@ const sections = [
   { id: "struktur", label: "Struktur Pengurus", icon: "structure" },
   { id: "menfest", label: "Moderasi Menfest", icon: "✉" },
   { id: "galeri", label: "Kelola Galeri", icon: "gallery" },
+  { id: "pengumuman", label: "Kelola Pengumuman", icon: "📣" },
   { id: "database", label: "Database", icon: "◈" },
   { id: "tugas", label: "Kelola Tugas", icon: "task" },
   { id: "jadwal", label: "Kelola Jadwal", icon: "calendar" },
@@ -54,6 +58,15 @@ const JADWAL_HARI_ORDER = [
   "Jumat",
   "Sabtu",
   "Minggu",
+];
+
+const PENGUMUMAN_KATEGORI = [
+  "Umum",
+  "Akademik",
+  "Ujian",
+  "Kegiatan",
+  "Beasiswa",
+  "Penting",
 ];
 
 const isTugasAktif = (tugas) =>
@@ -613,6 +626,15 @@ export default function Admin({
     motto: classInfo.motto || defaultClassInfo.motto,
   });
 
+  const [pengumumanAdminList, setPengumumanAdminList] = useState([]);
+  const [pengumumanAdminLoading, setPengumumanAdminLoading] = useState(false);
+  const [pengumumanForm, setPengumumanForm] = useState({
+    judul: "",
+    isi: "",
+    kategori: "Umum",
+    penulis: "Admin Fakultas",
+  });
+
   useEffect(() => {
     const config = getSupabaseConfig();
     setSupaUrl(config.url || "");
@@ -660,6 +682,20 @@ export default function Admin({
           notify(error.message || "Tugas gagal dimuat.", "error");
         })
         .finally(() => setTugasLoading(false));
+    }
+    if (activeSection === "pengumuman") {
+      setPengumumanAdminLoading(true);
+      getPengumumanList()
+        .then((result) =>
+          setPengumumanAdminList(
+            Array.isArray(result?.data) ? result.data : [],
+          ),
+        )
+        .catch((error) => {
+          setPengumumanAdminList([]);
+          notify(error.message || "Pengumuman gagal dimuat.", "error");
+        })
+        .finally(() => setPengumumanAdminLoading(false));
     }
     if (activeSection === "jadwal") {
       setJadwalLoading(true);
@@ -1050,6 +1086,43 @@ export default function Admin({
       notify("Tugas berhasil dihapus.");
     } catch (error) {
       notify(error.message || "Tugas gagal dihapus.", "error");
+    }
+  };
+  const handlePengumumanSubmit = async (event) => {
+    event.preventDefault();
+    if (!pengumumanForm.judul.trim())
+      return notify("Judul pengumuman wajib diisi.", "error");
+    try {
+      const record = await addPengumuman({
+        judul: pengumumanForm.judul.trim(),
+        isi: pengumumanForm.isi.trim(),
+        kategori: pengumumanForm.kategori,
+        penulis: pengumumanForm.penulis.trim(),
+      });
+      setPengumumanAdminList((previous) => [record, ...previous]);
+      setPengumumanForm((previous) => ({
+        ...previous,
+        judul: "",
+        isi: "",
+      }));
+      // Beranda mendengarkan event ini agar papan pengumuman langsung segar.
+      window.dispatchEvent(new Event("classhub:pengumuman-updated"));
+      notify("Pengumuman berhasil diterbitkan.");
+    } catch (error) {
+      notify(error.message || "Pengumuman gagal diterbitkan.", "error");
+    }
+  };
+  const handleDeletePengumuman = async (id) => {
+    if (!window.confirm("Hapus pengumuman ini?")) return;
+    try {
+      await deletePengumumanItem(id);
+      setPengumumanAdminList((previous) =>
+        previous.filter((item) => String(item.id) !== String(id)),
+      );
+      window.dispatchEvent(new Event("classhub:pengumuman-updated"));
+      notify("Pengumuman berhasil dihapus.");
+    } catch (error) {
+      notify(error.message || "Pengumuman gagal dihapus.", "error");
     }
   };
   const handleJadwalSubmit = async (event) => {
@@ -2019,6 +2092,142 @@ export default function Admin({
                 </p>
               )}
             </section>
+          )}
+
+          {activeSection === "pengumuman" && (
+            <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[390px_1fr]">
+              <section className={`${panelClass} h-fit`}>
+                <div className="mb-5">
+                  <h2 className="font-black">Tulis pengumuman</h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Pengumuman tampil di Papan Pengumuman Beranda selama 7 hari
+                    terakhir.
+                  </p>
+                </div>
+                <form onSubmit={handlePengumumanSubmit} className="space-y-3.5">
+                  <Field label="Judul *">
+                    <input
+                      required
+                      value={pengumumanForm.judul}
+                      onChange={(event) =>
+                        setPengumumanForm({
+                          ...pengumumanForm,
+                          judul: event.target.value,
+                        })
+                      }
+                      className={inputClass}
+                      placeholder="Contoh: Libur UTS minggu depan"
+                    />
+                  </Field>
+                  <Field label="Isi pengumuman">
+                    <textarea
+                      rows={4}
+                      value={pengumumanForm.isi}
+                      onChange={(event) =>
+                        setPengumumanForm({
+                          ...pengumumanForm,
+                          isi: event.target.value,
+                        })
+                      }
+                      className={`${inputClass} resize-none`}
+                      placeholder="Detail informasi untuk mahasiswa"
+                    />
+                  </Field>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Field label="Kategori">
+                      <select
+                        value={pengumumanForm.kategori}
+                        onChange={(event) =>
+                          setPengumumanForm({
+                            ...pengumumanForm,
+                            kategori: event.target.value,
+                          })
+                        }
+                        className={inputClass}
+                      >
+                        {PENGUMUMAN_KATEGORI.map((kategori) => (
+                          <option key={kategori}>{kategori}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Penulis">
+                      <input
+                        value={pengumumanForm.penulis}
+                        onChange={(event) =>
+                          setPengumumanForm({
+                            ...pengumumanForm,
+                            penulis: event.target.value,
+                          })
+                        }
+                        className={inputClass}
+                      />
+                    </Field>
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-indigo-700 active:scale-[0.99]"
+                  >
+                    ＋ Terbitkan pengumuman
+                  </button>
+                </form>
+              </section>
+              <section className={`${panelClass} min-w-0`}>
+                <div className="mb-5">
+                  <h2 className="font-black">Daftar pengumuman</h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {pengumumanAdminList.length} pengumuman tersimpan
+                  </p>
+                </div>
+                {pengumumanAdminLoading ? (
+                  <p className="py-12 text-center text-xs text-slate-500">
+                    Memuat pengumuman...
+                  </p>
+                ) : pengumumanAdminList.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-current/10 py-12 text-center text-xs text-slate-500">
+                    Belum ada pengumuman.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {pengumumanAdminList.map((item) => (
+                      <article
+                        key={item.id}
+                        className={`rounded-xl border p-4 ${isDark ? "border-white/10 bg-white/[0.03]" : "border-slate-200 bg-slate-50"}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h3 className="font-bold">{item.judul}</h3>
+                            <p className="mt-1 text-xs text-indigo-400">
+                              {item.kategori} · {item.penulis}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePengumuman(item.id)}
+                            className="shrink-0 text-xs font-bold text-rose-400"
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                        {item.isi && (
+                          <p className="mt-3 text-xs text-slate-500">
+                            {item.isi}
+                          </p>
+                        )}
+                        <p className="mt-3 text-[11px] text-slate-500">
+                          {new Date(item.created_at).toLocaleString("id-ID", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
           )}
 
           {activeSection === "tugas" && (
